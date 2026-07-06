@@ -13,6 +13,7 @@ def get_config():
         "key_path": str(Path((os.getenv("SSH_KEY_PATH"))).expanduser()), #Convertimos a String la ruta de la llave del Router
         "branches_file": Path(os.getenv("TOPOLOGY_FILE")).expanduser(),
         "backups_dir": Path(os.getenv("BCKP_DIR")), #Extraemos la ruta del Directorio de Repaldo
+        "log_dir": Path(os.getenv("LOG_DIR")).expanduser(),
         "telegram_token": str(os.getenv("TELEGRAM_TOKEN")),
         "telegram_chat_id": int(os.getenv("TELEGRAM_CHAT_ID")),
     }
