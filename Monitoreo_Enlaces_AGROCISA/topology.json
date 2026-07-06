@@ -1,0 +1,81 @@
+{
+    "BRANCHES": {
+        "CORPORATIVO": "10.147.17.1",
+        "PENJAMO": "10.147.17.2",
+        "LAPIEDAD": "10.147.17.3",
+        "MORELIA": "10.147.17.4",
+        "PONCITLAN": "10.147.17.5"
+    },
+    "SSOT":{
+        "CORPORATIVO":{
+            "TELCEL" : {
+                "flag": "Is",
+                "gateway": "1.0.0.1",
+                "distance": "4"
+            },
+            "TELMEX-2": {
+                "flag": "Is",
+                "gateway": "8.8.4.4",
+                "distance": "2"
+            },
+            "TELMEX-3": {
+                "flag": "Is",
+                "gateway": "1.1.1.1",
+                "distance": "3"
+            },
+            "TELMEX-1": {
+                "flag": "Is",
+                "gateway": "8.8.8.8",
+                "distance": "1"
+            }
+        },
+        "PENJAMO":{
+            "TELMEX-1" : {
+                "flag": "Is",
+                "gateway": "8.8.8.8",
+                "distance": "1"
+            },
+            "TELMEX-2" : {
+                "flag": "Is",
+                "gateway": "8.8.4.4",
+                "distance": "2"
+            }
+        },
+        "LAPIEDAD": {
+            "TELMEX-1" : {
+                "flag": "Is",
+                "gateway": "8.8.8.8",
+                "distance": "1"
+            },
+            "TELMEX-2" : {
+                "flag": "Is",
+                "gateway": "8.8.4.4",
+                "distance": "2"
+            }
+        },
+        "MORELIA": {
+            "TELMEX-1" : {
+                "flag": "Is",
+                "gateway": "8.8.8.8",
+                "distance": "1"
+            },
+            "TELMEX-2" : {
+                "flag": "Is",
+                "gateway": "8.8.4.4",
+                "distance": "2"
+            }
+        },
+        "PONCITLAN" : {
+            "TELMEX-1" : {
+                "flag": "Is",
+                "gateway": "8.8.8.8",
+                "distance": "1"
+            },
+            "TELMEX-2" : {
+                "flag": "Is",
+                "gateway": "8.8.4.4",
+                "distance": "2"
+            }
+        }
+    }
+}

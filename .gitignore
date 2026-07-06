@@ -1,0 +1,16 @@
+# Ignorar carpetas venv (en cualquier subcarpeta)
+**/venv/
+venv/
+
+# Ignorar archivos .env (en cualquier subcarpeta)
+**/*.env
+*.env
+
+**/*.log
+*.log
+
+# Ignorar carpetas __pycache__ en cualquier subcarpeta
+**/__pycache__/
+__pycache__/
+*.pyc
+*.pyo
