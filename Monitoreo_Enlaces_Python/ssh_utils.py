@@ -19,7 +19,7 @@ def connect_router(config,branch_name,branch_ip):
         connection.disconnect() #Nos desconectamos de la sesión
         emoji1 ="🔐"
         emoji2 = "✅"
-        print(f"\n  {emoji1:^2}{branch_name:^13}{emoji2:^2}...")
+        #logging.info(f"\n  {emoji1:^2}{branch_name:^13}{emoji2:^2}...")
         logging.info(f"CONECTANDO A {emoji1:^2}{branch_name:^13}{emoji2:^2}...")
         command = command.strip().splitlines() #Limpiamos los espacios en blanco y dividimos la lectura en líneas
         command = command[3:] #Ignoramos las 3 primeras filas de la tabla de ruteo porque son informativas

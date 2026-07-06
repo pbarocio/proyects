@@ -5,8 +5,8 @@ from config import get_config
 def send_notification(message):
     try:
         config = get_config()
-        telegram_token = config["telegram_token"]
-        telegram_chat_id = config["telegram_chat_id"]
+        telegram_token = str(config["telegram_token"])
+        telegram_chat_id = int(config["telegram_chat_id"])
         bot = telebot.TeleBot(telegram_token) #Definimos el bot
         bot.send_message(telegram_chat_id, message)
     except Exception as e:
