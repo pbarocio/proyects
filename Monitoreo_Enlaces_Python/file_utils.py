@@ -37,24 +37,24 @@ def load_previous_state(previous_state_file):
     except Exception as error:
         logging.error(f"¡¡¡ERROR CARGANDO EL ESTADO PREVIO!!! {error}", exc_info=True)
 
-def get_previous_state(previous_state,current_branch,current_link,current_flag,current_link_timestamp):
+def get_previous_state(previous_state,current_branch,current_link,current_flag,current_link_timestamp,current_link_lastrecord):
     try:
         if (current_branch not in previous_state or 
             current_link not in previous_state[current_branch] or
             "BRANCHES-DOWN" in current_branch): #Sí no existen las llaves en el estado previo o es BRANCHES-DOWN retornamos los valores actuales
-            return current_flag, current_link_timestamp, True, current_link_timestamp
+            return current_flag, current_link_timestamp, True, current_link_lastrecord
         
         link_state = previous_state[current_branch][current_link]
         
         previous_flag      = link_state.get("flag", current_flag)
         previous_timestamp = link_state.get("timestamp", current_link_timestamp)
         notification       = link_state.get("notification", True)
-        lastrecord         = link_state.get("lastrecord", current_link_timestamp)
+        lastrecord         = link_state.get("lastrecord", current_link_lastrecord)
         
-        return previous_flag,previous_timestamp,notification,lastrecord
+        return previous_flag, previous_timestamp, notification, lastrecord
     except Exception as error:
         logging.error(f"¡¡¡ERROR EXTRAYENDO EL ESTADO PREVIO!!! {error}", exc_info=True)
-        return current_flag, current_link_timestamp, True
+        return current_flag, current_link_timestamp, True, current_link_lastrecord
 
 def write_historical_file(historical_file,date,hour,day,current_branch,current_link,current_flag,current_gateway,current_distance,counter): #Escribir registros en Archivo Histórico y encabezados sí no existen
     try:

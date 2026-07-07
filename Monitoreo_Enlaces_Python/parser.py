@@ -23,7 +23,9 @@ def parse_router_output(registers,current_timestamp,empty_timestamp):
                             "flag": flag,
                             "gateway": gateway,
                             "distance": distance,
-                            "timestamp": link_timestamp
+                            "timestamp": link_timestamp,
+                            "notification": None,
+                            "lastrecord": current_timestamp,
                         }
         return route_list
     
