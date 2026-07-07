@@ -48,15 +48,12 @@ def print_link_down_old(branch_name,link,elapsed_time,notification): #Funcion qu
     except Exception as error:
         logging.error(f"\n❌ ‼️ 🔴 ERROR AL MOSTRAR LA CAÍDA PREVIA‼️ -> {error}\n", exc_info=True)
 
-def print_back_online_link(branch_name,link,elapsed_time,notification):
+def print_back_online_link(branch_name,link,elapsed_time):
     try:
         transcurrido = datetime.timedelta(seconds=elapsed_time)
         logging.warning(f"[{branch_name}-{link}] ENLACE DE NUEVO ACTIVO, ESTUVO FUERA POR ⌛ {transcurrido}\n")
-        if notification:
-            logging.warning(f"ALERTA DE TELEGRAM!!! --- 📢 ALERTA 📢❕ ✅ 🟢 [{branch_name}-{link}] 📶 🆙❕ESTUVO FUERA POR ⌛ {transcurrido}")
-            am.send_notification(f"📢 ALERTA 📢 \n❕ ✅ 🟢 [{branch_name}-{link}] 📶 🆙❕\nESTUVO FUERA POR ⌛ {transcurrido}") #Enviamos alerta de Telegram con el texto
-            return True
-        return notification
+        logging.warning(f"ALERTA DE TELEGRAM!!! --- 📢 ALERTA 📢❕ ✅ 🟢 [{branch_name}-{link}] 📶 🆙❕ESTUVO FUERA POR ⌛ {transcurrido}")
+        am.send_notification(f"📢 ALERTA 📢 \n❕ ✅ 🟢 [{branch_name}-{link}] 📶 🆙❕\nESTUVO FUERA POR ⌛ {transcurrido}") #Enviamos alerta de Telegram con el texto
 
     except Exception as error:
         logging.error(f"\n❌ ‼️ 🔴 ERROR AL MOSTRAR TIEMPO DE RECUPERACIÓN ‼️ -> {error}\n", exc_info=True)

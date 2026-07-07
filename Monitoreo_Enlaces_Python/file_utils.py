@@ -39,24 +39,22 @@ def load_previous_state(previous_state_file):
 
 def get_previous_state(previous_state,current_branch,current_link,current_flag,current_link_timestamp):
     try:
-        if current_branch in previous_state and current_link in previous_state[current_branch] and not "BRANCHES-DOWN" in current_branch: #Validamos sí hay un registro de estado anterior de ése enlace
-            previous_flag = previous_state[current_branch][current_link]["flag"]
-            previous_timestamp = previous_state[current_branch][current_link]["timestamp"]
-            notification = previous_state[current_branch][current_link]["notification"]
-            if previous_flag is None:
-                logging.critical(f"PREVIOUS_FLAG ERROR!!! ===> \"{previous_flag}\"")
-                previous_flag = current_flag
-            if previous_timestamp is None:
-                logging.critical(f"PREVIOUS_TIMESTAMP ERROR!!! ===> \"{previous_timestamp}\"")
-                previous_timestamp = current_link_timestamp
-            if notification is None:
-                logging.critical(f"NOTIFICATION ERROR!!! ===> \"{notification}\"")
-                notification = True
-            return previous_flag,previous_timestamp,notification #Regresamos los datos del estado anterior
-        else: #Cómo no hay estado anterior dejamos los valores actuales y la notificación cómo vacía
-            return current_flag, current_link_timestamp, True
+        if (current_branch not in previous_state or 
+            current_link not in previous_state[current_branch] or
+            "BRANCHES-DOWN" in current_branch): #Sí no existen las llaves en el estado previo o es BRANCHES-DOWN retornamos los valores actuales
+            return current_flag, current_link_timestamp, True, current_link_timestamp
+        
+        link_state = previous_state[current_branch][current_link]
+        
+        previous_flag      = link_state.get("flag", current_flag)
+        previous_timestamp = link_state.get("timestamp", current_link_timestamp)
+        notification       = link_state.get("notification", True)
+        lastrecord         = link_state.get("lastrecord", current_link_timestamp)
+        
+        return previous_flag,previous_timestamp,notification,lastrecord
     except Exception as error:
         logging.error(f"¡¡¡ERROR EXTRAYENDO EL ESTADO PREVIO!!! {error}", exc_info=True)
+        return current_flag, current_link_timestamp, True
 
 def write_historical_file(historical_file,date,hour,day,current_branch,current_link,current_flag,current_gateway,current_distance,counter): #Escribir registros en Archivo Histórico y encabezados sí no existen
     try:
