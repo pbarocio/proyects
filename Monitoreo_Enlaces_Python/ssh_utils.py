@@ -1,4 +1,5 @@
 import logging
+from netmiko.exceptions import NetmikoTimeoutException, NetmikoAuthenticationException
 from netmiko import ConnectHandler #Librería para manejar conexión SSH al router y funcionalidades sendCommand() disconnect()
 
 def connect_router(config,branch_name,branch_ip):
@@ -24,6 +25,18 @@ def connect_router(config,branch_name,branch_ip):
         command = command.strip().splitlines() #Limpiamos los espacios en blanco y dividimos la lectura en líneas
         command = command[3:] #Ignoramos las 3 primeras filas de la tabla de ruteo porque son informativas
         return True,command #Enviamos el resultado del comando
+    
+    except NetmikoTimeoutException: # El Mikrotik no responde (enlace muerto, sin luz, IP mal)
+        logging.warning(f"❌ ¡¡¡TIMEOUT EN {branch_name}! NO HAY RESPUESTA DEL ROUTER...")
+        #send_notification(config,f"🛑 {branch_name} ESTÁ INACCESIBLE (Timeout).")
+    
+    except NetmikoAuthenticationException: # Alguien le movió al usuario o contraseña del Mikrotik
+        logging.error(f"🔐 ¡¡¡ERROR DE AUTENTICACIÓN EN {branch_name}!!! CREDENCIALES INCORRECTAS.,.")
+        #send_notification(config,f"⚠️ ALERTA DE SEGURIDAD:\nCREDENCIALES RECHAZADAS EN {branch_name}.")
+    
+    except (SSHException, Exception) as e: # Un error raro del protocolo SSH o cualquier otra falla inesperada
+        logging.critical(f"💥 ¡¡¡ERROR INESPERADO EN {branch_name}: {str(e)}")
+        #send_notification(config,f"🚨 ¡¡¡FALLA CRÍTICA SSH EN {branch_name}: \n{str(e)}")
     
     except Exception as error:
         emoji ="🔴"

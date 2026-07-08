@@ -79,7 +79,7 @@ def control():
             if counter == 1:
                 logging.info(f"🚨 Es la primera ejecución después del reinicio,se escribirá Historical_File")
             if write_time:
-                logging.info(f"🚨 Han transcurrido más 10 minutos o más,el tiempo transcurrido es ({int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min o ({int(current_timestamp) - int(previous_lastrecord)})s, se escribirá Historical_File")
+                logging.info(f"🚨 Han transcurrido más 10 minutos,el tiempo transcurrido es ({int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min o ({int(current_timestamp) - int(previous_lastrecord)})s, se escribirá Historical_File")
             if something_change:
                 logging.info(f"🚨 Hubo cambio en {register_change},se escribirá Historical_file")
             f_u.write_all_files(counter, counter_file, current_state_file, current_state_timestamps, current_timestamp, historical_file, date, hour, day)
@@ -113,7 +113,7 @@ def handle_timestamps(current_state, previous_state, current_timestamp):
                     current_link_lastrecord = values.get("lastrecord")
                     logging.info("=" * 210)
                     logging.info(f"Link Actual: [{current_branch}-{current_link}]")
-                    previous_flag, previous_link_timestamp, notification, write_timestamp, link_changed, event = 0 , 0 , 0, 0, False, 0 #Inicializamos las variables
+                    previous_flag, previous_link_timestamp, notification, previous_link_lastrecord = "" , "" , True, "" #Inicializamos las variables
                     previous_flag, previous_link_timestamp, notification, previous_link_lastrecord = f_u.get_previous_state(previous_state, current_branch, current_link, current_flag,
                                                                                                                   current_link_timestamp, current_link_lastrecord) #Extraemos los valores útiles del Estado Anterior
 
@@ -124,7 +124,9 @@ def handle_timestamps(current_state, previous_state, current_timestamp):
                     logging.info(f"Notification => \"{notification}\"")
                     logging.info(f"previous_link_lastrecord \"{previous_link_lastrecord}\"")
                     logging.info(f"Current_Link_Lastrecord \"{current_link_lastrecord}\"")
-
+                    
+                    
+                    write_timestamp, link_changed, event = "", False, "" 
                     notification, write_timestamp, link_changed, event = handle_link_change(previous_flag, current_flag, previous_link_timestamp, current_timestamp, notification, current_branch, current_link)
                     values["notification"] = notification
                     values["timestamp"] = write_timestamp
@@ -211,6 +213,6 @@ def handle_link_change(previous_flag, current_flag, previous_link_timestamp, cur
         case _: # 🟢 SIN CAMBIOS (As -> As, o s -> s)
             print(f"SIN CAMBIOS")
             logging.info(f"\"{p_flag}\" \"{c_flag}\" # No hubo cambios #")
-            logging.warning(f"[{current_branch}-{current_link}] SIN CAMBIOS")
+            logging.info(f"[{current_branch}-{current_link}] SIN CAMBIOS")
             logging.info(f" # No hubo cambios# | Notification => {notification} | Write_Timestamp => {empty_timestamp} | Link_Changed => False | Event => NO_CHANGE")
             return notification, empty_timestamp, False, "NO_CHANGE"
