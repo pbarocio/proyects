@@ -112,7 +112,7 @@ def control():
                             a_m.send_notification("Es la primera ejecución después del reinicio, se escribirá el archivo actual")
                         else:
                             logging.info(f"Se cumple la ventana de 10 minutos, el tiempo tanscurrido es ({int((int(current_link_lastrecord) - int(previous_lastrecord)) / 60)})min, se escribe archivo Histórico para {current_link}")
-                            a_m.send_notification(f"Se cumple la ventana de 10 minutos, el tiempo tanscurrido es ({int((int(current_link_lastrecord) - int(previous_lastrecord)) / 60)})min, se escribe archivo Histórico para {current_link}")
+                            a_m.send_notification(f"Se cumple la ventana de 10 minutos, el tiempo tanscurrido es ({int((int(current_link_lastrecord) - int(previous_lastrecord)) / 60)})min, se escribe archivo Histórico para [{current_branch}-{current_link}]")
                         f_u.write_historical_file(historical_file, date, hour, day, current_branch, current_link, current_flag, current_gateway, current_distance)
                         values["lastrecord"] = current_link_lastrecord
                     elif link_changed:
