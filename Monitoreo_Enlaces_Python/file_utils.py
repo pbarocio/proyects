@@ -49,12 +49,33 @@ def get_previous_state(previous_state, current_branch, current_link, current_fla
         previous_flag      = link_state.get("flag", current_flag)
         previous_link_timestamp = link_state.get("timestamp", current_link_timestamp)
         notification       = link_state.get("notification", True)
-        lastrecord         = link_state.get("lastrecord", current_link_lastrecord)
+        previous_lastrecord         = link_state.get("lastrecord", current_link_lastrecord)
         
-        return previous_flag, previous_link_timestamp, notification, lastrecord
+        return previous_flag, previous_link_timestamp, notification, previous_lastrecord
     except Exception as error:
         logging.error(f"¡¡¡ERROR EXTRAYENDO EL ESTADO PREVIO!!! {error}", exc_info=True)
         return current_flag, current_link_timestamp, True, current_link_lastrecord
+    
+def write_all_files(counter, counter_file, current_state_file, current_state, current_timestamp, historical_file, date, hour, day): #Función qué se ejecuta cuándo es la primera ejecución, algún enlace cambia o se cumple el tiempo de escritura
+    for current_branch, links in current_state.items(): #Extraemos los datos qué se almacenarán en histórico
+        if current_branch == "BRANCHES-DOWN":
+            continue
+        else:
+            for link, values in links.items():
+                current_link = link
+                current_flag = values.get("flag")
+                current_gateway = values.get("gateway")
+                current_distance = values.get("distance")
+                
+                write_historical_file(historical_file, date, hour, day, current_branch, current_link, current_flag, current_gateway, current_distance) #Escribimos el archivo histórico de cada enlace
+                values["lastrecord"] = current_timestamp #Actualizamos el timestamp de lastrecord por el actual en cada enlace por el timestamp actual   
+    
+    write_always_files(counter, counter_file, current_state_file, current_state) #Escribimos el Contador y el estado actual con lastrecord actualizado
+        
+def write_always_files(counter, counter_file, current_state_file, current_state):
+    counter = counter + 1
+    write_json_files(counter_file,counter)
+    write_json_files(current_state_file,current_state)
 
 def write_historical_file(historical_file, date, hour, day, current_branch, current_link, current_flag, current_gateway, current_distance): #Escribir registros en Archivo Histórico y encabezados sí no existen
     try:

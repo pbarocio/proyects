@@ -49,7 +49,7 @@ def print_link_down_old(branch_name,link,elapsed_time,notification): #Funcion qu
     except Exception as error:
         logging.error(f"\n❌ ‼️ 🔴 ERROR AL MOSTRAR LA CAÍDA PREVIA‼️ -> {error}\n", exc_info=True)
 
-def print_back_online_link(branch_name,link,elapsed_time):
+def print_recovery_link(branch_name,link,elapsed_time):
     try:
         transcurrido = datetime.timedelta(seconds=elapsed_time)
         print(f"ENLACE DE NUEVO ACTIVO, ESTUVO FUERA POR ⌛ {transcurrido}\n")
