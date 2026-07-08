@@ -25,7 +25,7 @@ def get_backup(branch_name,branch_ip,command_backup,router_file,config):
     try:
         data_backup = connect_router(branch_name,branch_ip,command_backup,config)
         if "backup saved" in data_backup:
-            logging.info(f"✅ \"{router_file}\" GENERADO CORRECTAMENTE... \"{data_backup}\"")
+            logging.info(f"✅ \"{router_file}\" GENERADO CORRECTAMENTE...")
         else:
             logging.info(f"❌ ¡¡¡ERROR!!! {branch_name} NO PUDO GENERAR EL BINARIO: \"{router_file}\"...\n\"{data_backup}\"")
             send_notification(config,f"❌¡¡ERROR!! {branch_name} NO PUDO GENERAR EL BINARIO: \n\"{router_file}\"...\n\"{data_backup}\"")
@@ -58,7 +58,7 @@ def remove_backup_file(branch_name,branch_ip,remove_command,router_file,config):
     try:
         data_remove = connect_router(branch_name,branch_ip,remove_command,config) #Enviamos el comando de eliminar al router
         if "no such item" in data_remove.lower() or "failure" in data_remove.lower():
-            logging.info(f"\n *** ⚠️ ATENCIÓN: NO SE PUDO ELIMINAR {router_file} DEL ROUTER. REVISAR MANUALMENTE... \n CERRANDO CONEXIÓN...  \n")
+            logging.info(f"\n *** ⚠️ ATENCIÓN: NO SE PUDO ELIMINAR {router_file} DEL ROUTER. REVISAR MANUALMENTE... CERRANDO CONEXIÓN...")
             send_notification(config,f"⚠️ ATENCIÓN: NO SE PUDO ELIMINAR {router_file} DEL ROUTER. \nREVISAR MANUALMENTE... \n")
         else:
             logging.info(f"\n🧹 \"{router_file}\" ELMINADO CORRECTAMENTE DEL ROUTER...\n")
@@ -85,6 +85,6 @@ def orchestration(config,bckps_dir):
             remove_command = f"/file remove [find name={router_file}]" #Construir el comando para eliminar el archivo generado en el Router
             remove_backup_file(branch_name,branch_ip,remove_command,router_file,config)
             
-        send_notification(config,f"💾 LOS RESPALDOS DE LOS ROUTERS FUERON GENERADOS CON ÉXITO... ✅")
+        #send_notification(config,f"💾 LOS RESPALDOS DE LOS ROUTERS FUERON GENERADOS CON ÉXITO... ✅")
     except Exception as error:
         send_notification(config,f"❌ ERORR AL GENERAR LOS RESPALDOS DE LOS ROUTERS... \n{error}")
