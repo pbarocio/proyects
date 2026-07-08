@@ -8,7 +8,8 @@ import ssh_utils as ssh
 import parser as parser
 import file_utils as f_u
 import topology as tp
-import logger as logg              
+import logger as logg
+import alert_manager as a_m         
 
 def handle_branch_down(ssot,current_branch,current_timestamp):
     try:
@@ -82,95 +83,58 @@ def control():
                     current_gateway = values.get("gateway")
                     current_distance = values.get("distance")
                     current_link_timestamp = values.get("timestamp")
-                    # current_link_notification = values.get("notification")
                     current_link_lastrecord = values.get("lastrecord")
                     logg.print_current_state(current_link,current_flag,current_gateway,current_distance) #Mandamos a consola la impresión visual el enlace con su estado actual
-                    previous_flag, previous_timestamp, notification, write_timestamp = 0 ,0 ,0,0 #Inicializamos las variables
-                    previous_flag, previous_timestamp, notification, previous_lastrecord = f_u.get_previous_state(previous_state, current_branch, current_link, current_flag,
-                                                                                                                  current_link_timestamp, current_link_lastrecord) #Extraemos los valores útiles del Estado Anterior
-                    #notification, write_timestamp, link_changed, event = handle_link_change(previous_flag, previous_timestamp, previous_timestamp, notification, previous_timestamp, current_branch, current_link)
-                    
                     logging.info("=" * 210)
-                    logging.info(f"Lo qué se recibe de Estado Previo: Previous_Flag => {previous_flag} - Previous_Timestamp => {previous_timestamp} - Notification => {notification} - Previous_Lastrecord {previous_lastrecord}")
-                    logging.info(f"Current Branch => {current_branch} => Current link => {current_link} => Previous Flag => \"{previous_flag}\" => Current Flag => \"{current_flag}\" => Previous Timestamp => \"{previous_timestamp}\" => Current Timestamp => \"{current_timestamp}\"")
-                    if "Is" in current_flag: #Validamos sí el enlace actual está caído
-                        logging.info("Estado actual es \"Is\"")
-                        notification, write_timestamp = handle_down_link(current_branch, current_link, current_flag, previous_flag, previous_timestamp, current_timestamp,
-                                                                         notification) #Llamamos la función para hacer las validaciones de estado, sí había caída previa o es nueva caída, y recibimos el timestam correcto, sí es el previo o el actual
-                        
-                        logging.info(f"¡Ésto queda después de Validar los enlaces caídos! (handle_down_link) | Notificación => \"{notification}\" y WriteTimestamp \"{write_timestamp}\"")
-                        values["notification"], values["timestamp"] = notification, write_timestamp #Actualizamos los valores por el resultado de handle_down_link 
-                        
-                        logging.info(f"Se hace la resta: ({current_link_lastrecord}) - ({previous_lastrecord}) = {(int(current_link_lastrecord) - int (previous_lastrecord))} Sí es mayor a 600 (10 minutos escribe Hisórico)")
-                        if int(current_link_lastrecord) - int(previous_lastrecord) > 600:
-                            logging.info(f"Se escribe el archivo Histórico")
-                            f_u.write_historical_file(historical_file, date, hour, day, current_branch, current_link, current_flag, current_gateway, current_distance, str(counter))#Escribimos archivos Estado_Actual e Histórico con el timestamp correspondiente
-                            
-                            values["lastrecord"] = current_link_lastrecord #Se actualiza la íltima hora de escritura por la actual
-                            logging.info(f"Se establece cómo last record el tiempo actual")
+                    logging.info(f"Link Actual: [{current_branch}-{current_link}]")
+                    previous_flag, previous_link_timestamp, notification, write_timestamp, link_changed, event = 0 , 0 , 0, 0, 0, 0 #Inicializamos las variables
+                    previous_flag, previous_link_timestamp, notification, previous_lastrecord = f_u.get_previous_state(previous_state, current_branch, current_link, current_flag,
+                                                                                                                  current_link_timestamp, current_link_lastrecord) #Extraemos los valores útiles del Estado Anterior
+
+                    logging.info(f"Previous_Flag => \"{previous_flag}\"")
+                    logging.info(f"Current Flag => \"{current_flag}\"")
+                    logging.info(f"Previous_link_timestamp => \"{previous_link_timestamp}\"")
+                    logging.info(f"Current_Link_Timestamp => \"{current_link_timestamp}\"")
+                    logging.info(f"Notification => \"{notification}\"")
+                    logging.info(f"Previous_Lastrecord \"{previous_lastrecord}\"")
+                    logging.info(f"Current_Link_Lastrecord \"{current_link_lastrecord}\"")
+                    
+                    notification, write_timestamp, link_changed, event = handle_link_change(previous_flag, current_flag, previous_link_timestamp, current_timestamp, notification, current_branch, current_link)
+                    
+                    logging.info(f"handle_link_chage() | Notification => {notification} | Write_Timestamp => {write_timestamp} | Link_Changed => {link_changed} | Event => {event}")
+                    
+                    values["notification"] = notification
+                    values["timestamp"] = write_timestamp
+                    
+                    if (int(current_link_lastrecord) - int(previous_lastrecord) > 600) or (counter == 1):
+                        if counter ==1:
+                            logging.info(f"Es la primera ejecución después del reinicio, se escribirá el archivo actual")
+                            a_m.send_notification("Es la primera ejecución después del reinicio, se escribirá el archivo actual")
                         else:
-                            values["lastrecord"] = previous_lastrecord #No pasaron los 10 minutos por lo tanto se queda el registro de escritura anterior para respetar la resta
-                            logging.info(f"Se escribe el tiempo de escritura previo inicial ({previous_lastrecord}) en lugar del Timestamp_Actual ({current_link_lastrecord}) porque no han pasdo los 10 minutos")
-                    else: #El enlace está activo o en Failover -> Cambió el enlace principal o sigue sin cambios
-                        logging.info("El Estado Actual Es Failover \"s\" o Enlace Principal \"As\"")
-                        notification, write_timestamp = handle_up_link(current_branch,current_link,current_flag, previous_flag,previous_timestamp,current_timestamp,
-                                                                       empty_timestamp,notification) #Llamamos a la función que valida el estado actual cómo activo o en Failover para saber sí se recuperó un enlace o sí ya estaba activo previamente
-                        
-                        logging.info(f"¡Ésto queda después de validar los Estados Activos! (handle_up_link) | Notificación => \"{notification}\" y WriteTimestamp \"{write_timestamp}\"")
-                        values["notification"], values["timestamp"] = notification, write_timestamp #Actualizamos los valores por el resultado de handle_down_link
-                        logging.info(f"Se hace la resta: ({current_link_timestamp}) - ({previous_lastrecord}) = {(int(current_link_lastrecord) - int (previous_lastrecord))} Sí es mayor a 600 (10 minutos escribe Hisórico)")
-                        if int(current_link_lastrecord) - int(previous_lastrecord) > 600:
-                            logging.info(f"Se escribe el archivo Histórico")
-                            f_u.write_historical_file(historical_file,date,hour,day,current_branch,current_link,current_flag,
-                                                      current_gateway,current_distance,str(counter)) #Escribimos archivos Estado_Actual e Histórico con el timestamp actual debido a qué el enlace está activo
-                            values["lastrecord"] = current_link_lastrecord
-                            logging.info(f"Se establece cómo last record el tiempo actual")
-                        else:
-                            values["lastrecord"] = previous_lastrecord
-                            logging.info(f"Se escribe el tiempo de escritura previo inicial ({previous_lastrecord}) en lugar del Timestamp_Actual ({current_timestamp}) porque no han pasdo los 10 minutos")
-            
+                            logging.info(f"Se cumple la ventana de 10 minutos, el tiempo tanscurrido es ({int((int(current_link_lastrecord) - int(previous_lastrecord)) / 60)})min, se escribe archivo Histórico para {current_link}")
+                            a_m.send_notification(f"Se cumple la ventana de 10 minutos, el tiempo tanscurrido es ({int((int(current_link_lastrecord) - int(previous_lastrecord)) / 60)})min, se escribe archivo Histórico para {current_link}")
+                        f_u.write_historical_file(historical_file, date, hour, day, current_branch, current_link, current_flag, current_gateway, current_distance)
+                        values["lastrecord"] = current_link_lastrecord
+                    elif link_changed:
+                        logging.info(f"🚨 Hubo cambio en el enlace \"{previous_flag}\" => \"{current_flag}\" y no se han escrito los archivos, aunque no se cumplan los 10 minutos [Tiempo Transcurrido = ({int((int(current_link_lastrecord) - int(previous_lastrecord)) / 60)})] min se escribe el histórico para {current_link}")
+                        f_u.write_historical_file(historical_file, date, hour, day, current_branch, current_link, current_flag, current_gateway, current_distance)
+                        a_m.send_notification(f"🚨 Hubo cambio en el enlace \"[{current_branch}-{current_link}\"] \"{previous_flag}\" => \"{current_flag}\" y no se han escrito los archivos, aunque no se cumplan los 10 minutos [Tiempo Transcurrido = ({int((int(current_link_lastrecord) - int(previous_lastrecord)) / 60)})] min se escribe el histórico para {current_link}")
+                        values["lastrecord"] = current_link_lastrecord
+                    else:
+                        logging.info(f"No han pasado los 10 minutos o 600s, el tiempo transcurrido es ({int((int(current_link_lastrecord) - int(previous_lastrecord)) / 60)})min o ({int(current_link_lastrecord) - int(previous_lastrecord)})s, se escribe Previous_lastrecord ({previous_lastrecord}) en lugar del Current_link_lastrecord ({current_link_lastrecord}) porque no han pasdo los 10 minutos")
+                        values["lastrecord"] = previous_lastrecord
+                    
         f_u.write_json_files(current_state_file,current_state)
         
         logging.info("\n" + "=" * 102 + f"\n 💡 ÉSTE SCRIPT SE HA EJECUTADO **{counter}** VECES 🏁 EL DÍA DE HOY, PUEDES VER LOS DETALLES EN EL LOG 📋...\n" + "=" * 102)
         counter = counter + 1
         f_u.write_json_files(counter_file,counter)
     except Exception as error:
-        logging.critical(" ", exc_info=True)
+        logging.critical(f"¡¡¡ERROR FATAL!!! \n{error}", exc_info=True)
         raise
 
-def handle_down_link(current_branch,current_link,current_flag,previous_flag,previous_timestamp,current_timestamp,notification): #Manejamos los enlaces caídos vs los estados previos
-    if not "Is" in previous_flag and "Is" in current_flag: #Validamos sí el estado previo era arriba y en el actual es abajo -> Se acaba de caer
-        logging.info("Estado Previo es \"As\" o \"s\" Y El Estado Actual es \"Is\", o sea se acaba de caer")
-        logging.warning(f"[{current_branch}-{current_link}] ⚠️ ESTÁ FUERA ⚠️‼️")
-        print(f"⚠️ ESTÁ FUERA ⚠️‼️")
-        return notification, current_timestamp #Devolvemos cómo timestamp el actual para preservar la hora de la caída
-    else:
-        if "Is" in previous_flag and "Is" in current_flag: #Validamos sí el estado previo del enlace y el actual -> down para saber sí el sitio ya estaba caído.
-            logging.info("Estado Previo y Estado Actual son \"Is\"")
-            if not "-" in previous_timestamp: #Sí no hay un guión quiere decir que sí se registró un timestamp previo
-                logging.info(f"Previous Timestamp ({previous_timestamp})no tiene \"-\" ¡¡¡CORRECTO Y COHERENTE!!!")
-                elapsed_time = f_u.get_elapsed_time(previous_timestamp,current_timestamp)
-                logging.info(f"Elapsed Timestamp => ({elapsed_time})")
-                if elapsed_time == 0:
-                    logging.info(f"Elapsed Time ({elapsed_time}) es 0 => Se acaba de caer...")
-                    logging.info(f"⚠️ ESTÁ FUERA ⚠️‼️")
-                    logging.warning(f"[{current_branch}-{current_link}] ⚠️ ESTÁ FUERA ⚠️‼️")
-                    logging.info(f"Notification => \"{notification}\"")
-                    logging.info(f"Se quedó Previous_Timestamp aunque se haya acabado de caer => \"{previous_timestamp}\"")
-                    return notification, previous_timestamp
-                else:
-                    logging.info(f"Elapsped time ({elapsed_time}) no es \"0\" La Bandera de notificación qué se envía paraa Telegram => \"{notification}\" Se queda Previous_Timestamp (La anterior) => \"{previous_timestamp}\"")
-                    logging.info(f"*** AQUÍ DEBE ENVIAR LA NOTIFICACIÓN EN LA BANDERA DEL ENLACE ACTUAL CAÍDO (\"{current_flag}\") DEPENDIENDO DEL ESTADO DE LA NOTIFICACIÓN ACTUAL (\"{notification})\" ***")
-                    notification = logg.print_link_down_old(current_branch,current_link,elapsed_time,notification) #Imprimimos la función que muestra los detalles de un enlace que ya estaba caído y enviamos el tiempo que ha transcurrido
-                    logging.info(f"La Bandera de notificación qué de Telegram qué regresa el print_link_down_old=> {notification}")
-                    return notification,previous_timestamp #Regrsamos el timestamp previo porque ya tenía un timestamp activo... 
-            else:
-                logging.critical("ERROR EL TIMESTAMP ESTÁ CÓMO SÍ HAYA ESTADO ACTIVO, INCOHERENCIA PORQUE EL ESTADO ES \"Is\"") #Validamos en caso de error  en el timestamp...
-                return notification,previous_timestamp #Enviamos el enlace timestamp vacío porque no es coherente
-
-def handle_link_change(previous_flag, current_flag, previous_timestamp, current_timestamp, notification, current_branch, current_link):
+def handle_link_change(previous_flag, current_flag, previous_link_timestamp, current_timestamp, notification, current_branch, current_link):
     empty_timestamp = "-"
-    
     
     p_flag = "Is" if "Is" in previous_flag else previous_flag # Limíamos los String (ej. "Is " en lugar de "Is")
     c_flag = "Is" if "Is" in current_flag else current_flag
@@ -178,68 +142,63 @@ def handle_link_change(previous_flag, current_flag, previous_timestamp, current_
     match (p_flag, c_flag): # Evaluamos la tupla (Estado_Anterior, Estado_Actual)
         
         case ("As", "Is") | ("s", "Is"): #Enlace nuevo caído 8# 🚨 CAÍDA NUEVA: De estar arriba (Principal o Failover) a Caído)
+            logging.info(f"El enlace cambia de (\"As\" => \"Is\") | (\"s\" => \"Is\")")
             logging.warning(f"[{current_branch}-{current_link}] ⚠️ ESTÁ FUERA ⚠️‼️")
             print(f"⚠️ ESTÁ FUERA ⚠️‼️")
+            logging.info(f"# Nueva Caída # | Notification => {notification} | Write_Timestamp => {current_timestamp} | Link_Changed => False | Event => NEW_LINK_OUT")
             return notification, current_timestamp, True, "NEW_LINK_OUT"
 
         case ("Is", "Is"): # ⏳ CAÍDA PREVIA: Sigue abajo, hay que calcular tiempo transcurrido
-            if previous_timestamp != empty_timestamp:
-                elapsed_time = f_u.get_elapsed_time(previous_timestamp, current_timestamp)
+            logging.info(f"(\"Is\") => (\"Is\") # Caída Previa...#")
+            if previous_link_timestamp != empty_timestamp:
+                logging.info(f"Previous_Timestamp no es un guión {previous_link_timestamp} ¡¡¡ES CORRECTO!!!")
+                elapsed_time = f_u.get_elapsed_time(previous_link_timestamp, current_timestamp)
+                logging.info(f"Elapsed time => ({elapsed_time})s ({int(elapsed_time / 60)}) min")
                 if elapsed_time == 0:
+                    logging.warning(f"[{current_branch}-{current_link}] ⚠️ ESTÁ FUERA ⚠️‼️")
+                    print(f"⚠️ ESTÁ FUERA ⚠️‼️")
+                    logging.info(f"# Caída Previa # | Notification => {notification} | Write_Timestamp => {current_timestamp} | Link_Changed => False | Event => NEW_LINK_OUT")
                     return notification, current_timestamp, False, "NEW_LINK_OUT"
                 else:
+                    logging.info(f"*** AQUÍ DEBE ENVIAR LA NOTIFICACIÓN DE ENLACE CAÍDO (\"[{current_branch}-{current_flag}] A TELEGRAM, DEPENDIENDO DEL ESTADOO DE LA NOTIFICACIÓN ACTUAL (\"{notification}\") ***")
                     notification = logg.print_link_down_old(current_branch, current_link, elapsed_time, notification) # Alerta periódica de Telegram si aplica
-                    return notification, previous_timestamp, False, "LINK_OUT_PREVIOUS"
-            return notification, previous_timestamp, False, "PREVIOUS_TMESTAMP_ERROR"
+                    logging.info(f"# Caída Previa # | Notification => {notification} | Write_Timestamp => {previous_link_timestamp} | Link_Changed => False | Event => LINK_OUT_PREVIOUS")
+                    return notification, previous_link_timestamp, False, "LINK_OUT_PREVIOUS"
+            logging.error(f"¡¡¡ERROR EN EL TIMESTAMP!!! Se regresa Notification => {notification} | Write_Timestamp => {current_timestamp} | Link_Changed => False | Event => PREVIOUS_TMESTAMP_ERROR")
+            return notification, previous_link_timestamp, False, "PREVIOUS_TMESTAMP_ERROR"
 
         case ("Is", "As") | ("Is", "s"): # ✅ RECUPERACIÓN: Estaba abajo y revivió (ya sea en Principal o Failover)
+            logging.info(f"El enlace cambia de (\"Is\" => \"As\") | (\"Is\" => \"s\") # Recuperación ... #")
             notification = True
-            if previous_timestamp != empty_timestamp:
-                elapsed_time = f_u.get_elapsed_time(previous_timestamp, current_timestamp)
+            if previous_link_timestamp != empty_timestamp:
+                logging.info(f"Previous_Timestamp no es un guión {previous_link_timestamp} ¡¡¡ES CORRECTO!!!")
+                elapsed_time = f_u.get_elapsed_time(previous_link_timestamp, current_timestamp)
+                logging.info(f"Elapsed time => ({elapsed_time})s ({int(elapsed_time / 60)}) min")
+                logging.info(f"*** AQUÍ DEBE ENVIAR LA NOTIFICACIÓN DE ENLACE RECUPERADO (\"[{current_branch}-{current_flag}] A TELEGRAM ¡¡¡SÍ O SÍ!!! NOTIFICACIÓN => (\"{notification}\") ***")
                 logg.print_recovery_link(current_branch, current_link, elapsed_time)
-            return notification, empty_timestamp, True, "RECOVERY"
+                logging.info(f"# Recuperación ... # | Notification => {notification} | Write_Timestamp => {empty_timestamp} | Link_Changed => True | Event => RECOVERY")
+                return notification, empty_timestamp, True, "RECOVERY"
+            
+            logging.error(f"¡¡¡ERROR EN EL TIMESTAMP!!! Se regresa Notification => {notification} | Write_Timestamp => {current_timestamp} | Link_Changed => False Event => PREVIOUS_TMESTAMP_ERROR")
+            return notification, empty_timestamp, True, "PREVIOUS_TMESTAMP_ERROR"
 
         case ("As", "s"): # ⚠️ CAMBIO A FAILOVER: Sigue arriba pero se degradó
+            print(f"CAMBIÓ \"As\" => \"s\"")
+            logging.info(f"El enlace cambia de (\"As\" => \"s\") # Failover ... #")
             logging.warning(f"[{current_branch}-{current_link}] CAMBIÓ A FAILOVER")
+            logging.info(f"# Failover ... # | Notification => {notification} | Write_Timestamp => {empty_timestamp} | Link_Changed => True | Event => FAILOVER")
             return notification, empty_timestamp, True, "FAILOVER"
 
         case ("s", "As"): # 🚀 REGRESO A PRINCIPAL
+            print(f"CAMBIO DE \"s\" => \"As\"")
+            logging.info(f"El enlace cambia de (\"s\" => \"As\") # Enlace Principal ... #")
             logging.warning(f"[{current_branch}-{current_link}] ES EL ENLACE PRINCIPAL AHORA")
+            logging.info(f"# Enlace Principal ... # | Notification => {notification} | Write_Timestamp => {empty_timestamp} | Link_Changed => True | Event => PRIMARY_LINK")
             return notification, empty_timestamp, True, "PRIMARY_LINK"
 
         case _: # 🟢 SIN CAMBIOS (As -> As, o s -> s)
+            print(f"SIN CAMBIOS")
+            logging.info(f"\"{p_flag}\" \"{c_flag}\" # No hubo cambios #")
             logging.warning(f"[{current_branch}-{current_link}] SIN CAMBIOS")
+            logging.info(f" # No hubo cambios# | Notification => {notification} | Write_Timestamp => {empty_timestamp} | Link_Changed => False | Event => NO_CHANGE")
             return notification, empty_timestamp, False, "NO_CHANGE"
-
-
-def handle_up_link(current_branch,current_link,current_flag,previous_flag,previous_timestamp,current_timestamp,empty_timestamp,notification): #Validamos que el estado anterior haya estado en down y el actual esté activo o en Failover 
-    if "Is" in previous_flag and not "Is" in current_flag: #Sí el status del estado previo es caído y el actual es activo o Failover quiere decir que el enlace se recuperó
-        notification = True
-        logging.info("Estado Previo es \"Is\" y Estado Actual es \"As\" o \"s\"")
-        if not "-" in previous_timestamp: #Sí no hay un guión quiere decir que el previous_state es correcto debe tener un timestamp
-            logging.info(f"Previous TimeStamp ({previous_timestamp}) No es un guión \"-\" ¡¡¡CORRECTO!!!")
-            elapsed_time = f_u.get_elapsed_time(previous_timestamp,current_timestamp)
-            logging.info(f"Elapsped time ({elapsed_time}) no es \"0\" La Bandera de notificación qué se envía a Telegram => \"{notification}\" Se queda Empty_Timestamp Porque el enlace ahora está activo => \"{empty_timestamp}\"")
-            logging.info(f"*** AQUÍ DEBE ENVIAR LA NOTIFICACIÓN EN LA BANDERA DEL ENLACE ACTUAL ACTIVO (\"{current_flag}\"")
-            #logging.info(f"*** AQUÍ DEBE ENVIAR LA NOTIFICACIÓN EN LA BANDERA DEL ENLACE ACTUAL ACTIVO (\"{current_flag}\ DEPENDIENDO DEL ESTADOO DE LA NOTIFICACIÓN ACTUAL (\"{notification}\") ***")
-            logg.print_recovery_link(current_branch,current_link,elapsed_time) #Se imprime en pantalla la alerta de recuperación de enlace
-            logging.info(f"La Bandera de notificación qué de Telegram qué regresa print_back_online(): => {notification}")
-            return notification, empty_timestamp #Enviamos el timestamp en blanco porque el enlace está activo
-        else:
-            logging.critical("ERROR EL TIMESTAMP ESTÁ CÓMO SÍ HAYA ESTADO ACTIVO, INCOHERENCIA PORQUE EL ESTADO PREVIO ES ES \"Is\"") #Sí hay un guión quiere decir que hubo un error guardando el timestamp de la caída
-            return notification, empty_timestamp #Enviamos el enlace timestamp vacío porque no es coherente
-    elif "As" in previous_flag and current_flag == "s": #Validar sí el enlace cambio a Failover
-        logging.info("Estado Previo es enlace principal: \"As\" Y el Actual es Failover \"s\"")
-        logging.info(f"Valores qué se Regresan a control() : Notification => {notification} - Cómo el enlace está activo Empty_Timestamp => {empty_timestamp}")
-        logging.warning(f"[{current_branch}-{current_link}] CAMBIÓ A FAILOVER")
-        return notification, empty_timestamp #Se regresa el timestamp vacío porque el enlace está activo
-    elif previous_flag == "s" and "As" in current_flag: #Validar sí cambió a Enlace Principal
-        logging.info("Estado Previo es Failover => \"s\" y Estado Actual es => \"As\"")
-        logging.warning(f"[{current_branch}-{current_link}] ES EL ENLACE PRINCIPAL AHORA")
-        logging.info(f"Valores qué se Regresan a control() : Notification => {notification} - Cómo el enlace está activo Empty_Timestamp => {empty_timestamp}")
-        return notification, empty_timestamp #Se regresa el timestamp vacío porque el enlace está activo
-    elif previous_flag == current_flag: #El enlace no cambió
-        logging.info("Estado Previo y Estado actual son iguales")
-        logging.info(f"Valores qué se Regresan a control() : Notification => {notification} - Cómo el enlace está activo Empty_Timestamp => {empty_timestamp}")
-        logging.info(f"[{current_branch}-{current_link}] SIN CAMBIOS")
-        return notification, empty_timestamp #Se regresa el timestamp vacío porque el enlace está activo

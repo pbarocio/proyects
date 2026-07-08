@@ -39,6 +39,7 @@ def print_current_state(link,flag,gateway,distance): #Imprimir en consola los es
 def print_link_down_old(branch_name,link,elapsed_time,notification): #Funcion qué imprime el tiempo que lleva caído un enlace
     try:
         transcurrido = datetime.timedelta(seconds=elapsed_time)
+        print(f"TIEMPO FUERA: {transcurrido} ⌛")
         logging.warning(f"[{branch_name}-{link}] TIEMPO FUERA: {transcurrido} ⌛")
         if elapsed_time >= 1200 and notification: #Calculamos la ventana de la alerta de 20 a 22 minutos #and elapsed_time <= 1400
             logging.warning(f"ALERTA DE TELEGRAM!!! --- ⚠️ ALERTA⚠️ ‼️🔴[{branch_name}-{link}]‼️ \nTIEMPO FUERA: ⌛ {transcurrido}")
@@ -51,6 +52,7 @@ def print_link_down_old(branch_name,link,elapsed_time,notification): #Funcion qu
 def print_back_online_link(branch_name,link,elapsed_time):
     try:
         transcurrido = datetime.timedelta(seconds=elapsed_time)
+        print(f"ENLACE DE NUEVO ACTIVO, ESTUVO FUERA POR ⌛ {transcurrido}\n")
         logging.warning(f"[{branch_name}-{link}] ENLACE DE NUEVO ACTIVO, ESTUVO FUERA POR ⌛ {transcurrido}\n")
         logging.warning(f"ALERTA DE TELEGRAM!!! --- 📢 ALERTA 📢❕ ✅ 🟢 [{branch_name}-{link}] 📶 🆙❕ESTUVO FUERA POR ⌛ {transcurrido}")
         am.send_notification(f"📢 ALERTA 📢 \n❕ ✅ 🟢 [{branch_name}-{link}] 📶 🆙❕\nESTUVO FUERA POR ⌛ {transcurrido}") #Enviamos alerta de Telegram con el texto
