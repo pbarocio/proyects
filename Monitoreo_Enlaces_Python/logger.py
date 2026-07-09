@@ -2,11 +2,11 @@ import logging
 import datetime
 import alert_manager as am
 
-def print_out_site(branch_name,notification):
+def print_out_site(branch_name,notification, error):
     try:
         if notification:
-            logging.warning(f"ALERTA DE TELEGRAM!!! --- ⚠️ ALERTA ⚠️‼️ 🔴 {branch_name} ESTÁ FUERA‼️") #Enviamos alerta de Telegram con ése texto
-            am.send_notification(f"⚠️ ALERTA ⚠️ \n‼️ 🔴 {branch_name} ESTÁ FUERA‼️") #Enviamos alerta de Telegram con ése texto
+            logging.warning(f"⚠️ ALERTA DE TELEGRAM!!! --- ‼️ 🚨 ALERTA 🚨 ‼️ 🔴 {branch_name} ESTÁ FUERA ❌") #Enviamos alerta de Telegram con ése texto
+            am.send_notification(f"🚨 ‼️ALERTA‼️ 🚨\n🔴 {branch_name} ESTÁ FUERA❌\n{error}") #Enviamos alerta de Telegram con ése texto
         return False
         
     except Exception as error:
@@ -39,11 +39,11 @@ def print_current_state(link,flag,gateway,distance): #Imprimir en consola los es
 def print_link_down_old(branch_name,link,elapsed_time,notification): #Funcion qué imprime el tiempo que lleva caído un enlace
     try:
         transcurrido = datetime.timedelta(seconds=elapsed_time)
-        print(f"TIEMPO FUERA: {transcurrido} ⌛")
-        logging.warning(f"[{branch_name}-{link}] TIEMPO FUERA: {transcurrido} ⌛")
+        print(f"🔴 TIEMPO FUERA: ⌛ {transcurrido}")
+        logging.warning(f"⚠️ [{branch_name}-{link}] 🔴 TIEMPO FUERA: ⌛ {transcurrido}")
         if elapsed_time >= 1200 and notification: #Calculamos la ventana de la alerta de 20 a 22 minutos #and elapsed_time <= 1400
-            logging.warning(f"ALERTA DE TELEGRAM!!! --- ⚠️ ALERTA⚠️ ‼️🔴[{branch_name}-{link}]‼️ \nTIEMPO FUERA: ⌛ {transcurrido}")
-            am.send_notification(f"⚠️ ALERTA⚠️ \n‼️🔴[{branch_name}-{link}]‼️ \nTIEMPO FUERA: ⌛ {transcurrido}") #Enviamos alerta de Telegram con ése texto
+            logging.warning(f"⚠️ ALERTA DE TELEGRAM!!! --- 🚨 ‼️ ALERTA ‼️ 🚨 🔴[{branch_name}-{link}] ❌ \nTIEMPO FUERA: ⌛ {transcurrido}")
+            am.send_notification(f"🚨‼️ALERTA‼️🚨\n🔴[{branch_name}-{link}] ❌\nTIEMPO FUERA: ⌛ {transcurrido}") #Enviamos alerta de Telegram con ése texto
             return False
         return notification
     except Exception as error:
@@ -52,10 +52,10 @@ def print_link_down_old(branch_name,link,elapsed_time,notification): #Funcion qu
 def print_recovery_link(branch_name,link,elapsed_time):
     try:
         transcurrido = datetime.timedelta(seconds=elapsed_time)
-        print(f"ENLACE DE NUEVO ACTIVO, ESTUVO FUERA POR ⌛ {transcurrido}\n")
-        logging.warning(f"[{branch_name}-{link}] ENLACE DE NUEVO ACTIVO, ESTUVO FUERA POR ⌛ {transcurrido}\n")
-        logging.warning(f"ALERTA DE TELEGRAM!!! --- 📢 ALERTA 📢❕ ✅ 🟢 [{branch_name}-{link}] 📶 🆙❕ESTUVO FUERA POR ⌛ {transcurrido}")
-        am.send_notification(f"📢 ALERTA 📢 \n❕ ✅ 🟢 [{branch_name}-{link}] 📶 🆙❕\nESTUVO FUERA POR ⌛ {transcurrido}") #Enviamos alerta de Telegram con el texto
+        print(f"✅ RECUPERACIÓN, ESTUVO FUERA POR ⌛ {transcurrido}\n")
+        logging.warning(f"⚠️ [{branch_name}-{link}] ENLACE DE NUEVO ACTIVO ✅, ESTUVO FUERA POR ⌛ {transcurrido}")
+        logging.warning(f"ALERTA DE TELEGRAM!!! --- 📢 ❕ALERTA❕ 📢 🟢[{branch_name}-{link}] ✅ ESTUVO FUERA POR ⌛ {transcurrido}")
+        am.send_notification(f"📢❕ALERTA❕📢\n🟢[{branch_name}-{link}] ✅\nESTUVO FUERA POR ⌛ {transcurrido}") #Enviamos alerta de Telegram con el texto
 
     except Exception as error:
         logging.error(f"\n❌ ‼️ 🔴 ERROR AL MOSTRAR TIEMPO DE RECUPERACIÓN ‼️ -> {error}\n", exc_info=True)

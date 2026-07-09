@@ -24,22 +24,22 @@ def connect_router(config,branch_name,branch_ip):
         logging.info(f"CONECTANDO A {emoji1:^2}{branch_name:^13}{emoji2:^2}...")
         command = command.strip().splitlines() #Limpiamos los espacios en blanco y dividimos la lectura en líneas
         command = command[3:] #Ignoramos las 3 primeras filas de la tabla de ruteo porque son informativas
-        return True,command #Enviamos el resultado del comando
+        return True,command,[] #Enviamos el resultado del comando
     
     except NetmikoTimeoutException: # El Mikrotik no responde (enlace muerto, sin luz, IP mal)
-        logging.warning(f"❌ ¡¡¡TIMEOUT EN {branch_name}! NO HAY RESPUESTA DEL ROUTER...")
-        #send_notification(config,f"🛑 {branch_name} ESTÁ INACCESIBLE (Timeout).")
+        logging.error(f"🚨 ¡¡¡TIMEOUT EN \"{branch_name}\"!!! NO HAY RESPUESTA DEL ROUTER... ❌", exc_info=True)
+        return False,[], ""
     
     except NetmikoAuthenticationException: # Alguien le movió al usuario o contraseña del Mikrotik
-        logging.error(f"🔐 ¡¡¡ERROR DE AUTENTICACIÓN EN {branch_name}!!! CREDENCIALES INCORRECTAS.,.")
-        #send_notification(config,f"⚠️ ALERTA DE SEGURIDAD:\nCREDENCIALES RECHAZADAS EN {branch_name}.")
+        logging.error(f"🔐 ¡¡¡ERROR DE AUTENTICACIÓN EN \"{branch_name}\"!!! CREDENCIALES INCORRECTAS... ⚠️", exc_info=True)
+        return False, [], f"🔐 ERROR DE AUTENTICACIÓN...\n CREDENCIALES INCORRECTAS..."
     
     except (SSHException, Exception) as e: # Un error raro del protocolo SSH o cualquier otra falla inesperada
-        logging.critical(f"💥 ¡¡¡ERROR INESPERADO EN {branch_name}: {str(e)}")
-        #send_notification(config,f"🚨 ¡¡¡FALLA CRÍTICA SSH EN {branch_name}: \n{str(e)}")
+        logging.critical(f"💥 ¡¡¡ERROR SSH INESPERADO EN \"{branch_name}\" ⚠️ \n{str(e)}", exc_info=True)
+        return False,[], f"💥 ERROR SSH INESPERADO...\n{str(e)}"
     
     except Exception as error:
         emoji ="🔴"
         emoji2 ="⚠️⚠️⚠️"
-        logging.error(f"\n{emoji2:^6}{emoji:^3}{branch_name:^10}  ESTÁ FUERA‼️ \n\n{error}", exc_info=True)
-        return False,[]
+        logging.critical(f"\"{emoji2:^6}{emoji:^3}{branch_name:^10}\"ESTÁ FUERA‼️\n{error}", exc_info=True)
+        return False, [] , error
