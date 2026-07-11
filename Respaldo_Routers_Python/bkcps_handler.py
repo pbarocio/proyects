@@ -117,8 +117,7 @@ def orchestration(config,bckps_dir):
                 success, router_file, local_file = get_backup(branch_name,branch_dir,time_format,config,ssh_session)
                 if success: #Sí la ejecución del backup se hace con éxito
                     success_scp = scp_connect_native(router_file, local_file, config, ssh_session) #Descargamos el backup del router por scp al directorio de destino
-                    #remove_backup_file(router_file,config,ssh_session) #Eliminamos el archivo del router
-                remove_backup_file(router_file,config,ssh_session)
+                    remove_backup_file(router_file,config,ssh_session) #Eliminamos el archivo del router
             except Exception as error:
                 logging.error(f"❌ Flujo interrumpido en {branch_name} debido a un fallo: {error}", exc_info=True)
             finally:
