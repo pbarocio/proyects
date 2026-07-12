@@ -1,8 +1,8 @@
 import logging
 import datetime #Importar librería para manejar fecha y hora
-import time
+#import time
 from pathlib import Path #Librería para manejar directorios cómo objetos
-import subprocess #Librería para comandos de shell
+#import subprocess #Librería para comandos de shell
 from topology import load_branches
 from ssh_manager import connect_router
 from alert_manager import send_notification
@@ -46,7 +46,8 @@ def scp_connect_native(router_file, local_file, config, ssh_session):
     try:
         # ssh_port = config["port"]
         # key_path = config["key_path"]
-        # user_router = config["username"]
+        # user
+        # _router = config["username"]
         # scp_command = [
         #     "scp",
         #     "-P", str(ssh_port),
@@ -70,21 +71,17 @@ def scp_connect_native(router_file, local_file, config, ssh_session):
         #         logging.info("📍 El archivo existe en el MikroTik. Verificando tamaño...")
         #         logging.info(f"✅ \"{router_file}\" DESCARGADO CORRECTAMENTE...")
         
-        transport = ssh_session.remote_conn.transport
-        # 2. Crear un cliente SFTP directamente desde el Transport
-        sftp = paramiko.SFTPClient.from_transport(transport)
-        # 3. Descargar el archivo
-        sftp.get(router_file, str(local_file))
-        # 4. Cerrar el canal SFTP
-        sftp.close()
+        #transport = ssh_session.remote_conn.transport
+        transport = ssh_session.remote_conn.get_transport()
+        sftp = paramiko.SFTPClient.from_transport(transport) # 2. Crear un cliente SFTP directamente desde el Transport
+        sftp.get(router_file, str(local_file)) # 3. Descargar el archivo
+        sftp.close() # 4. Cerrar el canal SFTP
         logging.info(f"✅ \"{local_file}\" DESCARGADO CORRECTAMENTE...")
-        return True
     # except subprocess.CalledProcessError as e:
     #     logging.error(f"❌ SCP falló: {e.stderr}")
     #     return False
     except Exception as e:
         logging.error(f"❌ ERROR AL COPIAR {router_file} EN EL SERVIDOR REVISA QUÉ ESTÉ ENCENDIDO\n{e}", exc_info=True)
-        return False
         #send_notification(config,f"❌ ERROR AL COPIAR {router_file} EN EL SERVIDOR \nREVISA QUÉ ESTÉ ENCENDIDO")
 
 def remove_backup_file(router_file, config, ssh_session):
@@ -113,12 +110,13 @@ def orchestration(config,bckps_dir):
                 logging.info(f"*** 📡 INTENTANDO CONEXIÓN A {branch_name.upper()} ({branch_ip}) .... ")
                 logging.info("*" * 100)
                 ssh_session = connect_router(branch_name, branch_ip, config)
+                if isinstance(ssh_session, list) or not ssh_session:
+                    continue
                 get_src(branch_name, branch_dir, config, time_format, ssh_session) #Correr el backup de rsc
                 success, router_file, local_file = get_backup(branch_name,branch_dir,time_format,config,ssh_session)
                 if success: #Sí la ejecución del backup se hace con éxito
-                    success_scp = scp_connect_native(router_file, local_file, config, ssh_session) #Descargamos el backup del router por scp al directorio de destino
-                    #remove_backup_file(router_file,config,ssh_session) #Eliminamos el archivo del router
-                remove_backup_file(router_file,config,ssh_session)
+                    scp_connect_native(router_file, local_file, config, ssh_session) #Descargamos el backup del router por scp al directorio de destino
+                remove_backup_file(router_file,config,ssh_session) #Eliminamos el archivo del router
             except Exception as error:
                 logging.error(f"❌ Flujo interrumpido en {branch_name} debido a un fallo: {error}", exc_info=True)
             finally:
