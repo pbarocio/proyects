@@ -27,7 +27,7 @@ def connect_router(config,branch_name,branch_ip):
         return True,command,[] #Enviamos el resultado del comando
     
     except NetmikoTimeoutException: # El Mikrotik no responde (enlace muerto, sin luz, IP mal)
-        logging.error(f"🚨 ¡¡¡TIMEOUT EN \"{branch_name}\"!!! NO HAY RESPUESTA DEL ROUTER... ❌", exc_info=True)
+        logging.error(f"🚨 ¡¡¡TIMEOUT EN \"{branch_name}\"!!! NO HAY RESPUESTA DEL ROUTER... ❌")
         return False,[], ""
     
     except NetmikoAuthenticationException: # Alguien le movió al usuario o contraseña del Mikrotik

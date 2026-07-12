@@ -220,13 +220,13 @@ def handle_write_files(counter, counter_file, current_state, current_state_file,
             if counter == 1:
                 logging.info(f"✅ Es la primera ejecución ⚙️ después del reinicio")
             if write_time:
-                logging.info(f"✅ Han transcurrido más 10 minutos ⌛ => ({int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min/({int(current_timestamp) - int(previous_lastrecord)})s")
+                logging.info(f"✅ Han transcurrido más \"10 min\" ⌛ => (\"{int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min\"/(\"{int(current_timestamp) - int(previous_lastrecord)})s\"")
             if something_change:
-                logging.info(f"✅ Hubo cambio en {register_change}")
+                logging.info(f"✅ Hubo cambio en \"{register_change}\"")
             logging.info(f"💾 Se escribirán todos los archivos (Contador ⏱️ => \"{counter}\", Estado Actual 📝 => \"{current_state_file}\", y Arhivo Histórico 🗃️ => \"{historical_file}\")")
             f_u.write_all_files(counter, counter_file, current_state_file, current_state, current_timestamp, historical_file, date, hour, day)
         else:
-            logging.info(f"🚫 No han pasado los 10 minutos o 600s para escribir Historical_File, el tiempo transcurrido es ⌛ ({int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min/({int(current_timestamp) - int(previous_lastrecord)})s, se escribió Previous_lastrecord ({previous_lastrecord}) en lugar del Current_link_lastrecord ({current_timestamp})")
+            logging.info(f"🚫 No han pasado los \"10 min\" o \"600s\" para escribir \"Historical_File\", el tiempo transcurrido es ⌛ \"({int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min\"/\"({int(current_timestamp) - int(previous_lastrecord)})s\", se escribió Previous_lastrecord (\"{previous_lastrecord}\") en lugar del Current_link_lastrecord (\"{current_timestamp}\")")
             f_u.write_always_files(counter, counter_file, current_state_file, current_state)
         
         logging.info("\n" + "=" * 102 + f"\n 💡 ÉSTE SCRIPT SE HA EJECUTADO **{counter}** VECES 🏁 EL DÍA DE HOY, PUEDES VER LOS DETALLES EN EL LOG 📋...\n" + "=" * 102)
