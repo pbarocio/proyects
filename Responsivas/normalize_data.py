@@ -2,7 +2,7 @@ from datetime import datetime
 from num2words import num2words
 
 def normalize_date(date_raw):
-    if date_raw is None and not date_raw:
+    if date_raw is None or not date_raw:
         return "Sin asignar"
     
     if isinstance(date_raw, datetime):

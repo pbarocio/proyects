@@ -2,6 +2,8 @@ import openpyxl
 import pathlib
 import normalize_data as nd
 from config import get_config
+from docxtpl import DocxTemplate
+
 # 1. Abrir el Excel
 config = get_config()
 files_dir = config["files_dir"]
@@ -79,11 +81,23 @@ for fila in range(2, ultima_fila + 1):
             'precio_letras': precio_letra
         }
         
+        # 1. Cargar la plantilla de Word
+        plantilla = DocxTemplate(files_dir / "plantilla_laptops.docx")
+
+        # 2. Inyectar el diccionario contexto que ya programaste
+        plantilla.render(contexto)
+
+        # 3. Guardar el archivo final personalizado
+        # Lo ideal es meterle el nombre del empleado al archivo para que no se sobreescriban
+        dir_save = files_dir / "Responsivas_Laptops"
+        dir_save.mkdir(parents=True, exist_ok=True)
+        plantilla.save(dir_save /f"Responsiva_laptop_{usuario}.docx")
+        
         # 6. Mostrar datos
-        print("=" * 175)
-        print(f"👤 Empleado: {usuario} | 📍 Sucursal: {sucursal} | 💼 Departamento: {departamento} | 🪪 Puesto: {puesto}")
-        print(f"📧 Correo de Google: {cuenta_gmail} | 📧 Correo Corporativo: {cuenta_agrocisa}")
-        print(f"💻 Marca y Modelo {marca} {modelo} | 📋 Serie: {numero_serie} |  🔖 Condición {condicion} | 🔌 Cargador: {cargador}")
-        print(f"🗓️ Fecha: {fecha} | 💵 Precio ${precio} ({precio_letra}) | 🗣️ Comentarios: {coments}")
+        # print("=" * 175)
+        # print(f"👤 Empleado: {usuario} | 📍 Sucursal: {sucursal} | 💼 Departamento: {departamento} | 🪪 Puesto: {puesto}")
+        # print(f"📧 Correo de Google: {cuenta_gmail} | 📧 Correo Corporativo: {cuenta_agrocisa}")
+        # print(f"💻 Marca y Modelo {marca} {modelo} | 📋 Serie: {numero_serie} |  🔖 Condición {condicion} | 🔌 Cargador: {cargador}")
+        # print(f"🗓️ Fecha: {fecha} | 💵 Precio ${precio} ({precio_letra}) | 🗣️ Comentarios: {coments}")
 
 print("=" * 175)

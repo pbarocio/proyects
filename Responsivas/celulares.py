@@ -2,6 +2,8 @@ import openpyxl
 import pathlib
 import normalize_data as nd
 from config import get_config
+from docxtpl import DocxTemplate
+
 # 1. Abrir el Excel
 config = get_config()
 files_dir = config["files_dir"]
@@ -66,7 +68,7 @@ for fila in range(2, ultima_fila + 1):
     precio, precio_letra = nd.normalize_price(fila_empleado[COL_PRECIO].value)
 
     
-    if not imei is None and not imei == "Sin dato":
+    if not imei is None and not nombre == "Sin dato":
         contexto = {}
         contexto = {
             'fecha' : fecha,
@@ -89,12 +91,24 @@ for fila in range(2, ultima_fila + 1):
             'precio_letras': precio_letra
         }
         
+        # 1. Cargar la plantilla de Word
+        plantilla = DocxTemplate(files_dir / "plantilla_celulares.docx")
+
+        # 2. Inyectar el diccionario contexto que ya programaste
+        plantilla.render(contexto)
+
+        # 3. Guardar el archivo final personalizado
+        # Lo ideal es meterle el nombre del empleado al archivo para que no se sobreescriban
+        dir_save = files_dir / "Responsivas_Celulares"
+        dir_save.mkdir(parents=True, exist_ok=True)
+        plantilla.save(dir_save /f"Responsiva_celuar_{nombre}.docx")
+        
         # 6. Mostrar datos
-        print("=" * 175)
-        print(f"👤 Empleado: {nombre} | 📍 Sucursal: {sucursal} | 💼 Departamento: {departamento} | 🪪 Puesto: {puesto}")
-        print(f"📧 Correo de Google: {cuenta_gmail} | 📧 Correo Corporativo: {cuenta_agrocisa}")
-        print(f"📱 Equipo: {equipo} | 🗒️ IMEI: {imei} | 📋 Serie: {numero_serie} |  🔖 Condición {condicion} | 🔌 Cargador: {cargador} | 📦 Caja: {caja}")
-        print(f" 📞 Cel: {numero} | 📡 Datos incluidos en el plan: {megas} GB | 🗣️ Comentarios: {coments}")
-        print(f"🗓️ Fecha: {fecha} | 💵 Precio ${precio} ({precio_letra})")
+        # print("=" * 175)
+        # print(f"👤 Empleado: {nombre} | 📍 Sucursal: {sucursal} | 💼 Departamento: {departamento} | 🪪 Puesto: {puesto}")
+        # print(f"📧 Correo de Google: {cuenta_gmail} | 📧 Correo Corporativo: {cuenta_agrocisa}")
+        # print(f"📱 Equipo: {equipo} | 🗒️ IMEI: {imei} | 📋 Serie: {numero_serie} |  🔖 Condición {condicion} | 🔌 Cargador: {cargador} | 📦 Caja: {caja}")
+        # print(f" 📞 Cel: {numero} | 📡 Datos incluidos en el plan: {megas} GB | 🗣️ Comentarios: {coments}")
+        # print(f"🗓️ Fecha: {fecha} | 💵 Precio ${precio} ({precio_letra})")
 
 print("=" * 175)
