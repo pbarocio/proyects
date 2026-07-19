@@ -103,7 +103,7 @@ def main():
         phone_number TEXT PRIMARY KEY,
         id_usuario INTEGER NULL,
         id_plan_2026 INTEGER,
-        is_mpp TEXT NULL,
+        is_mpp INTEGER NULL,
         
         -- EL HISTÓRICO COMPLETO (Sin mutilaciones, carnal)
         plan_2024 TEXT,

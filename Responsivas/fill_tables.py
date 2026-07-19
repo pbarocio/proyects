@@ -256,7 +256,7 @@ def fill_mobile_lines(cursor, excel_path):
             
         # Mapeo estricto de las 10 columnas de tu Excel de la verdad
         phone_number = str(row[0]).split('.')[0].strip()
-        is_mpp = str(row[1]).strip() if row[1] else None
+        is_mpp = 1 if row[1] else 0
         
         plan_2024 = str(row[2]).strip() if row[2] else None
         mensualidad_2024 = clean_money_value(row[3])
