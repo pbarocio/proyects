@@ -4,17 +4,17 @@ from pathlib import Path
 
 def fill_branches(cursor):
     branches_list = [
-        ("Corporativo",),
         ("La Barca",),
+        ("Pénjamo",),
         ("La Piedad",),
         ("Morelia",),
-        ("Pénjamo",),
         ("Poncitlán",),
-        ("Zona Altos",)
+        ("Zona Altos",),
+        ("Corporativo",),
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO branches (branch_name) 
+    INSERT OR IGNORE INTO sucursales (nombre_sucursal) 
     VALUES (?);
     """, branches_list)
 
@@ -27,6 +27,7 @@ def fill_departments(cursor):
         ("Compras",),
         ("Compras Internacionales",),
         ("Contabilidad",),
+        ("Corporativo",),
         ("Crédito y Cobranza",),
         ("Dealer Standard",),
         ("Dirección",),
@@ -47,11 +48,11 @@ def fill_departments(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO departments (department_name) 
+    INSERT OR IGNORE INTO departmentos (nombre_departamento) 
     VALUES (?);
     """, departments_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} departments nuevas al catálogo de agrocisa_core.db!")
+    print(f"¡Se han cargado {cursor.rowcount} departmentos nuevos al catálogo de agrocisa_core.db!")
     
 def fill_positions(cursor):
     positions_list = [
@@ -109,11 +110,11 @@ def fill_positions(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO positions (position_name) 
+    INSERT OR IGNORE INTO puestos (nombre_puesto) 
     VALUES (?);
     """, positions_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} positions nuevas al catálogo de agrocisa_core.db!")
+    print(f"¡Se han cargado {cursor.rowcount} puestos nuevos al catálogo de agrocisa_core.db!")
     
 def fill_box(cursor):
     box_list = [
@@ -122,11 +123,11 @@ def fill_box(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO box (caja_type) 
+    INSERT OR IGNORE INTO caja (caja_opcion) 
     VALUES (?);
     """, box_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} box nuevas al catálogo de agrocisa_core.db!")
+    print(f"¡Se han cargado {cursor.rowcount} caja_options nuevas al catálogo de agrocisa_core.db!")
 
 def fill_conditions(cursor):
     condition_list = [
@@ -138,11 +139,11 @@ def fill_conditions(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO condition (condition_status) 
+    INSERT OR IGNORE INTO condicion (condicion_opcion) 
     VALUES (?);
     """, condition_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} condition nuevas al catálogo de agrocisa_core.db!")
+    print(f"¡Se han cargado {cursor.rowcount} condicion_opcion nuevas al catálogo de agrocisa_core.db!")
 
 def fill_hd_type(cursor):
     hd_type_list = [
@@ -152,11 +153,11 @@ def fill_hd_type(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO hd_type (hd_type_name) 
+    INSERT OR IGNORE INTO hd_tipo (hd_opcion) 
     VALUES (?);
     """, hd_type_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} hd_type nuevas al catálogo de agrocisa_core.db!")
+    print(f"¡Se han cargado {cursor.rowcount} hd_tipo nuevas al catálogo de agrocisa_core.db!")
     
 def fill_renew(cursor):
     renew_list = [
@@ -165,11 +166,11 @@ def fill_renew(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO renew (renew_option) 
+    INSERT OR IGNORE INTO renovacion (renovacion_opcion) 
     VALUES (?);
     """, renew_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} renew nuevas al catálogo de agrocisa_core.db!")
+    print(f"¡Se han cargado {cursor.rowcount} 'renovacion_opciones' nuevas al catálogo de agrocisa_core.db!")
     
 def fill_chargers(cursor):
     charger_list = [
@@ -183,11 +184,11 @@ def fill_chargers(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO chargers (charger_option) 
+    INSERT OR IGNORE INTO cargadores (cargador_opcion) 
     VALUES (?);
     """, charger_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} 'charger_options' nuevas al catálogo de agrocisa_core.db!")
+    print(f"¡Se han cargado {cursor.rowcount} 'cargador_opciones' nuevas al catálogo de agrocisa_core.db!")
     
 def fill_phone_plans(cursor):
     # Metemos los datos limpios de tu imagen
@@ -202,11 +203,11 @@ def fill_phone_plans(cursor):
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
     cursor.executemany("""
-    INSERT OR IGNORE INTO phone_plans_2026 (plan_type, monthly_charge, mobile_data) 
+    INSERT OR IGNORE INTO planes_telcel_2026 (nombre_plan, mensualidad, datos_incluidos) 
     VALUES (?, ?, ?);
     """, plans_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} 'phone_plans_2026' nuevos al catálogo!")
+    print(f"¡Se han cargado {cursor.rowcount} 'planes_telcel_2026' nuevos al catálogo!")
     
 def fill_mobile_phones_2026(cursor):
     # Metemos los datos limpios de tu imagen
@@ -224,11 +225,11 @@ def fill_mobile_phones_2026(cursor):
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
     cursor.executemany("""
-    INSERT OR IGNORE INTO mobile_phones_2026 (name, price) 
+    INSERT OR IGNORE INTO equipos_2026 (marca_modelo, precio) 
     VALUES (?, ?);
     """, mobile_phones_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} 'mobile_phones_2026' nuevos al catálogo!")
+    print(f"¡Se han cargado {cursor.rowcount} 'equipos_2026' nuevos al catálogo!")
 
 def clean_money_value(value):
     if value is None or str(value).strip() in ('N/A', ''):
@@ -246,37 +247,47 @@ def fill_mobile_lines(cursor, excel_path):
     wb = openpyxl.load_workbook(excel_path, data_only=True)
     sheet = wb['Historico_Lineas_2026']
     
+    COL_NUMERO = 0
+    COL_MPP = 1
+    COL_PLAN_2024 = 2
+    COL_MENSUALIDAD_2024 = 3
+    COL_GB_2024 = 4
+    COL_PLAN_2026 = 5
+    COL_MENSUALIDAD_2026 = 6
+    COL_GB_BASE_2026 = 7
+    COL_GB_PROMOCION_2026 = 8
+    COL_DIFERENCIA_2024_2026 = 9
+    
     lines_to_insert = []
     
     # max_col=10 para asegurar que leemos desde Teléfono hasta Diferencia completo
     for row in sheet.iter_rows(min_row=2, max_col=10, values_only=True):
         
-        if row[0] is None:
+        if row[COL_NUMERO] is None:
             continue
             
         # Mapeo estricto de las 10 columnas de tu Excel de la verdad
-        phone_number = str(row[0]).split('.')[0].strip()
-        is_mpp = 1 if row[1] else 0
+        numero = int(float(str(row[COL_NUMERO]).strip()))
+        is_mpp = 1 if row[COL_MPP] else 0
         
-        plan_2024 = str(row[2]).strip() if row[2] else None
-        mensualidad_2024 = clean_money_value(row[3])
-        gb_2024 = clean_gb_value(row[4])
+        plan_2024 = str(row[COL_PLAN_2024]).strip() if row[COL_PLAN_2024] else None
+        mensualidad_2024 = clean_money_value(row[COL_MENSUALIDAD_2024])
+        gb_2024 = clean_gb_value(row[COL_GB_2024])
         
-        plan_2026 = str(row[5]).strip() if row[5] else None
-        mensualidad_2026 = clean_money_value(row[6])
+        plan_2026 = str(row[COL_PLAN_2026]).strip() if row[COL_PLAN_2026] else None
+        mensualidad_2026 = clean_money_value(row[COL_MENSUALIDAD_2026])
         
         # --- AQUÍ ESTÁ LO QUE TE HABÍA MOCHADO ---
-        gb_base_2026 = clean_gb_value(row[7])       # Columna 7: GB normales del plan
-        gb_promocion_2026 = clean_gb_value(row[8])  # Columna 8: GB con la promoción ganada
+        gb_base_2026 = clean_gb_value(row[COL_GB_BASE_2026])       # Columna 7: GB normales del plan
+        gb_promocion_2026 = clean_gb_value(row[COL_GB_PROMOCION_2026])  # Columna 8: GB con la promoción ganada
         
-        cost_difference = clean_money_value(row[9])  # Columna 9: Diferencia de los $100
+        cost_difference = clean_money_value(row[COL_DIFERENCIA_2024_2026])  # Columna 9: Diferencia de los $100
         
         id_usuario = None
-        id_plan_2026 = plan_2026 
         
         # Empaquetamos la tupla con las 11 variables para la base de datos
         lines_to_insert.append((
-            phone_number, id_usuario, id_plan_2026, is_mpp,
+            numero, id_usuario, is_mpp,
             plan_2024, mensualidad_2024, gb_2024,
             plan_2026, mensualidad_2026, gb_base_2026, gb_promocion_2026,
             cost_difference
@@ -284,16 +295,15 @@ def fill_mobile_lines(cursor, excel_path):
         
     # Inserción limpia con todos los testigos guardados
     cursor.executemany("""
-    INSERT OR IGNORE INTO mobile_lines (
-        phone_number, id_usuario, id_plan_2026, is_mpp,
+    INSERT OR IGNORE INTO lineas_telcel (
+        numero, id_usuario, is_mpp,
         plan_2024, mensualidad_2024, gb_2024,
         plan_2026, mensualidad_2026, gb_base_2026, gb_promocion_2026,
         cost_difference
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
     """, lines_to_insert)
     
     print(f"¡Listo, carnal! Inyectadas {len(lines_to_insert)} líneas con el histórico y los gigas completos.")
-
 
 # El mismo candado aquí para evitar cargas de datos por accidente
 if __name__ == "__main__":
