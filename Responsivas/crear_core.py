@@ -115,6 +115,18 @@ def main():
     """)
     
     print("¡Tabla 'lineas_telcel' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS empleados (
+        codigo INTEGER PRIMARY KEY,
+        apellido_paterno TEXT,
+        apellido_materno TEXT,
+        nombre TEXT,
+        numero_telefono INTEGER UNIQUE,
+        FOREIGN KEY (numero_telefono) REFERENCES lineas_telcel(numero)
+    );
+    """)
+    print("¡Tabla 'empleados' creada exitosamente en agrocisa_core.db!")
 
     conexion.commit()
     conexion.close()

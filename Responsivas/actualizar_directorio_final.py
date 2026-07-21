@@ -1,6 +1,7 @@
 import pandas as pd
 import unicodedata
 from pathlib import Path
+import sqlite3
 
 archivo = Path.home() / "git" / "pablo-contexto" / "Archivos_Responsivas" / "Directorio.xlsx"
 print (archivo)
@@ -15,6 +16,17 @@ def quitar_acentos(texto):
     texto_nfkd = unicodedata.normalize('NFD', texto)
     return "".join([c for c in texto_nfkd if unicodedata.category(c) != 'Mn'])
 
+def limpiar_telefono(valor):
+        if pd.isna(valor):
+            return None
+        # Sacamos los números limpios
+        digitos = ''.join(filter(str.isdigit, str(valor)))
+        # Si la celda estaba vacía o con un espacio blanco, 'digitos' vale ''
+        if not digitos:
+            return None
+            
+        return int(digitos)
+    
 # --- PARTE 1: LA FUENTE DE LA VERDAD (EMPLEADOS) ---
 df_emp = pd.read_excel(archivo, sheet_name='Empleados')
 activos = df_emp[df_emp['estatus'] == 'ACTIVO'].copy()
@@ -67,6 +79,37 @@ directorio_final = directorio_final.rename(columns={'nombre_sist': 'nombre'})
 
 # --- PARTE 4: GUARDAR EL RESULTADO ---
 directorio_final.to_excel(excel_nuevo, index=False)
+#########AQUÍ COMIENZA EL PEDO DE LA TABLA
+
+# 1. Filtramos el DataFrame 'directorio_final' para dejar las 5 columnas
+# (Asegúrate de que la columna del teléfono sea numérico INTEGER para que haga match con tu FK)
+empleados_tabla = directorio_final[[
+    'codigo', 
+    'apellido_paterno', 
+    'apellido_materno', 
+    'nombre', 
+    'Celular'
+]].copy()
+
+# 2. Renombramos únicamente la columna 'telefono' a 'numero_telefono'
+# para que coincida exactito con tu DDL
+empleados_tabla = empleados_tabla.rename(columns={'Celular': 'numero_telefono'})
+#empleados_tabla['numero_telefono'] = empleados_tabla['numero_telefono'].apply(limpiar_telefono)
+# 2. Convertimos al entero de Pandas que SI permite nulos (Int64)
+empleados_tabla['numero_telefono'] = empleados_tabla['numero_telefono'].astype('Int64')
+# 3. Inyección limpia a agrocisa_core.db usando append
+conexion = sqlite3.connect("agrocisa_core.db")
+
+empleados_tabla.to_sql(
+    name='empleados',
+    con=conexion,
+    if_exists='append',
+    index=False
+)
+
+conexion.close()
+
+print("¡Listo carnal! Se pobló la tabla 'empleados' respetando tu schema y la FK hacia 'lineas_telcel'.")
 
 print("=== ¡PROCESO CONCLUIDO CON ÉXITO, CARNAL! ===")
 print(f"Total registros matheados y procesados: {len(directorio_final)}")
