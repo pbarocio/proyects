@@ -28,6 +28,7 @@ def fill_departments(cursor):
         ("Compras Internacionales",),
         ("Contabilidad",),
         ("Corporativo",),
+        ("Corporativo Operativo",),
         ("Crédito y Cobranza",),
         ("Dealer Standard",),
         ("Dirección",),
@@ -42,17 +43,18 @@ def fill_departments(cursor):
         ("Postventa",),
         ("Refacciones",),
         ("Servicio",),
+        ("Sin Asignar",),
         ("Sistemas",),
         ("Staff",),
         ("Vigilancia",),
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO departmentos (nombre_departamento) 
+    INSERT OR IGNORE INTO departamentos (nombre_departamento) 
     VALUES (?);
     """, departments_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} departmentos nuevos al catálogo de agrocisa_core.db!")
+    print(f"¡Se han cargado {cursor.rowcount} 'departamentos' nuevos al catálogo de agrocisa_core.db!")
     
 def fill_positions(cursor):
     positions_list = [
@@ -69,7 +71,6 @@ def fill_positions(cursor):
         ("Auxiliar de Sistemas",),
         ("Cajera",),
         ("Chofer",),
-        ("Dinamómetro",),
         ("Director",),
         ("Diseñador Gráfico",),
         ("DMS",),
@@ -79,20 +80,22 @@ def fill_positions(cursor):
         ("Implementero",),
         ("Jefa Crédito y Cobranza",),
         ("Jefa de Finanzas",),
-        ("Jefe Administrativo",),
         ("Jefe de Agricultura Inteligente",),
         ("Jefe de Capital Humano",),
+        ("Jefe de Compras",),
         ("Jefe de Contabilidad",),
         ("Jefe de Mantenimiento",),
         ("Jefe de Marketing",),
         ("Jefe de Refacciones",),
+        ("Jefe de Servicio",),
+        ("Jefe de Servicio Administrativo",),
+        ("Jefe de Servicio Operativo",),
         ("Jefe de Sistemas",),
         ("Jefe de Staff",),
         ("Jefe de Taller",),
         ("Jefe de Técnicos",),
+        ("Jefe Técnicos Gama Alta",),
         ("Jefe de Ventas Construcción",),
-        ("Jefe Maquinaria Gama Alta",),
-        ("Jefe Operativo",),
         ("Jefe Parque Vehicular",),
         ("Jefe Postventa",),
         ("Jefe Ventas Agrícola",),
@@ -106,6 +109,7 @@ def fill_positions(cursor):
         ("Representante Legal",),
         ("Sin Asignar",),
         ("Técnico",),
+        ("Técnico Dinamómetro",),
         ("Telemetría",),
     ]
 
@@ -295,7 +299,7 @@ def fill_mobile_lines(cursor, excel_path):
         
     # Inserción limpia con todos los testigos guardados
     cursor.executemany("""
-    INSERT OR IGNORE INTO lineas_telcel (
+    INSERT OR IGNORE INTO lineas_telefonicas (
         numero, id_usuario, is_mpp,
         plan_2024, mensualidad_2024, gb_2024,
         plan_2026, mensualidad_2026, gb_base_2026, gb_promocion_2026,

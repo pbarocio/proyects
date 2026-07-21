@@ -15,8 +15,8 @@ def main():
     print("¡Tabla 'sucursales' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS departmentos (
-        id_departmento INTEGER PRIMARY KEY AUTOINCREMENT,
+    CREATE TABLE IF NOT EXISTS departamentos (
+        id_departamento INTEGER PRIMARY KEY AUTOINCREMENT,
         nombre_departamento TEXT NOT NULL UNIQUE
     );
     """)
@@ -99,7 +99,7 @@ def main():
     print("¡Tabla 'equipos_2026' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS lineas_telcel (
+    CREATE TABLE IF NOT EXISTS lineas_telefonicas (
         numero INTEGER PRIMARY KEY,
         id_usuario INTEGER NULL,
         is_mpp INTEGER NULL,
@@ -122,7 +122,13 @@ def main():
         apellido_paterno TEXT,
         apellido_materno TEXT,
         nombre TEXT,
-        numero_telefono INTEGER UNIQUE,
+        id_sucursal INTEGER,
+        id_departamento INTEGER,
+        id_puesto INTEGER,
+        numero_telefono INTEGER,
+        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal),
+        FOREIGN KEY (id_departamento) REFERENCES departamentos(id_departamento),
+        FOREIGN KEY (id_puesto) REFERENCES puestos(id_puesto),
         FOREIGN KEY (numero_telefono) REFERENCES lineas_telcel(numero)
     );
     """)
