@@ -94,7 +94,7 @@ def fill_positions(cursor):
         ("Jefe de Staff",),
         ("Jefe de Taller",),
         ("Jefe de Técnicos",),
-        ("Jefe Técnicos Gama Alta",),
+        ("Jefe de Técnicos Gama Alta",),
         ("Jefe de Ventas Construcción",),
         ("Jefe Parque Vehicular",),
         ("Jefe Postventa",),
@@ -224,7 +224,8 @@ def fill_mobile_phones_2026(cursor):
         ("Samsung S25FE 128GB", 15499),
         ("Samsung Galaxy A36", 7499),
         ("Samsung Galaxy A56", 10999),
-        ("Samsung S26 Ultra 512GB", 29999)
+        ("Samsung S26 Ultra 512GB", 29999),
+        ("Honor X5 Plus", 800)
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
@@ -287,11 +288,11 @@ def fill_mobile_lines(cursor, excel_path):
         
         cost_difference = clean_money_value(row[COL_DIFERENCIA_2024_2026])  # Columna 9: Diferencia de los $100
         
-        id_usuario = None
+        codigo_usuario = None
         
         # Empaquetamos la tupla con las 11 variables para la base de datos
         lines_to_insert.append((
-            numero, id_usuario, is_mpp,
+            numero, codigo_usuario, is_mpp,
             plan_2024, mensualidad_2024, gb_2024,
             plan_2026, mensualidad_2026, gb_base_2026, gb_promocion_2026,
             cost_difference
@@ -300,7 +301,7 @@ def fill_mobile_lines(cursor, excel_path):
     # Inserción limpia con todos los testigos guardados
     cursor.executemany("""
     INSERT OR IGNORE INTO lineas_telefonicas (
-        numero, id_usuario, is_mpp,
+        numero, codigo_empleado, is_mpp,
         plan_2024, mensualidad_2024, gb_2024,
         plan_2026, mensualidad_2026, gb_base_2026, gb_promocion_2026,
         cost_difference
@@ -313,7 +314,7 @@ def fill_mobile_lines(cursor, excel_path):
 if __name__ == "__main__":
     connecction = sqlite3.connect("agrocisa_core.db")
     cursor = connecction.cursor()
-    excel_wb = Path.home() / "git" / "pablo-contexto" / "Archivos_Responsivas" / "Directorio.xlsx"
+    excel_wb = Path.home() / "git" / "proyects" / "AGROCISA_core" /"Archivos_Responsivas" / "Directorio.xlsx"
     
     fill_branches(cursor)
     fill_departments(cursor)

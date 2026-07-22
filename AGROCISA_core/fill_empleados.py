@@ -1,12 +1,13 @@
 import pandas as pd
+import re
 import unicodedata
 from pathlib import Path
 import sqlite3
 
-archivo = Path.home() / "git" / "pablo-contexto" / "Archivos_Responsivas" / "Directorio.xlsx"
+archivo = Path.home() / "git" / "proyects" / "AGROCISA_core" /"Archivos_Responsivas" / "Directorio.xlsx"
 print (archivo)
 
-excel_nuevo = Path.home() / "git" / "pablo-contexto" / "Archivos_Responsivas" / "Directorio_Con_Codigo_Y_Nombres.xlsx"
+excel_nuevo = Path.home() / "git" / "proyects" / "AGROCISA_core" /"Archivos_Responsivas" / "Directorio_Con_Codigo_Y_Nombres.xlsx"
 print(excel_nuevo)
 
 # 1. FUNCIÓN MÁGICA PARA QUITAR ACENTOS Y NORMALIZAR
@@ -15,8 +16,6 @@ def quitar_acentos(texto):
         return ""
     texto_nfkd = unicodedata.normalize('NFD', texto)
     return "".join([c for c in texto_nfkd if unicodedata.category(c) != 'Mn'])
-
-import re
 
 def limpiar_caracteres_raros(texto):
     if not isinstance(texto, str):
@@ -27,6 +26,18 @@ def limpiar_caracteres_raros(texto):
     texto_limpio = re.sub(r'[^\w\sÑñáéíóúÁÉÍÓÚüÜ.-]', '', texto)
     
     return texto_limpio.strip()
+
+def normalizar_cadena(texto):
+    if not isinstance(texto, str):
+        return ""
+    # 1. Quitar acentos
+    texto_nfkd = unicodedata.normalize('NFD', texto)
+    texto = "".join([c for c in texto_nfkd if unicodedata.category(c) != 'Mn'])
+    # 2. Quitar caracteres raros
+    texto = re.sub(r'[^\w\sÑñ.-]', '', texto)
+    # 3. COLAPSAR MÚLTIPLES ESPACIOS A UNO SOLO Y HACE STRIP (¡AQUÍ ESTABA EL DUENDE!)
+    texto = re.sub(r'\s+', ' ', texto).strip()
+    return texto.lower()
 
 def limpiar_telefono(valor):
         if pd.isna(valor):
@@ -45,9 +56,9 @@ activos = df_emp[df_emp['estatus'] == 'ACTIVO'].copy()
 
 # Armamos la llave limpia
 nombres_emp = (
-    activos['nombre'].astype(str).apply(limpiar_caracteres_raros).str.strip() + " " +
-    activos['apellido_paterno'].astype(str).apply(limpiar_caracteres_raros).str.strip() + " " +
-    activos['apellido_materno'].astype(str).apply(limpiar_caracteres_raros).str.strip()
+    activos['nombre'].astype(str).apply(limpiar_caracteres_raros).apply(normalizar_cadena).str.strip() + " " +
+    activos['apellido_paterno'].astype(str).apply(limpiar_caracteres_raros).apply(normalizar_cadena).str.strip() + " " +
+    activos['apellido_materno'].astype(str).apply(limpiar_caracteres_raros).apply(normalizar_cadena).str.strip()
 ).str.lower()
 
 activos['llave_limpia'] = nombres_emp.apply(quitar_acentos)
@@ -63,7 +74,7 @@ mapa_materno = dict(zip(activos['llave_limpia'], activos['apellido_materno']))
 df_dir = pd.read_excel(archivo, sheet_name='Asignaciones')
 
 # Limpiamos la columna 'Nombre' del Directorio para comparar
-nombre_dir_limpio = df_dir['Nombre'].astype(str).str.strip().str.lower().apply(quitar_acentos)
+nombre_dir_limpio = df_dir['Nombre'].astype(str).str.strip().str.lower().apply(quitar_acentos).apply(normalizar_cadena).apply(limpiar_caracteres_raros)
 
 # INYECTAMOS LOS DATOS DEL SISTEMA USANDO .map()
 df_dir['codigo'] = nombre_dir_limpio.map(mapa_codigo)
@@ -168,8 +179,37 @@ empleados_tabla.to_sql(
     index=False
 )
 
-conexion.close()
 print("¡A huevo! Tabla 'empleados' inyectada con todas sus Foreign Keys normalizadas.")
+
+# 1. Del DataFrame de asignaciones, sacamos el mapa {numero_telefono: codigo_empleado}
+# Filtrando únicamente los que sí tienen número de celular y código de empleado válido
+lineas_mapeo = asignaciones_final[['Celular', 'codigo']].dropna().copy()
+lineas_mapeo['Celular'] = lineas_mapeo['Celular'].astype('Int64')
+lineas_mapeo['codigo'] = lineas_mapeo['codigo'].astype(int)
+
+# Quitamos duplicados por si un mismo número venía dos veces por error
+#lineas_mapeo = lineas_mapeo.drop_duplicates(subset=['Celular'])
+
+# 2. Ejecutamos un UPDATE masivo en la tabla 'lineas_telcel' para asociar el codigo_empleado
+cursor = conexion.cursor()
+
+datos_update = [
+    (row['codigo'], row['Celular']) 
+    for _, row in lineas_mapeo.iterrows()
+]
+
+# Actualizamos la columna codigo_empleado haciendo match por el numero de teléfono
+cursor.executemany("""
+    UPDATE lineas_telefonicas
+    SET codigo_empleado = ? 
+    WHERE numero = ?;
+""", datos_update)
+
+conexion.commit()
+conexion.close()
+
+print(f"¡A huevo! Se asociaron exitosamente {len(datos_update)} líneas con su respectivo código de empleado en 'lineas_telcel'.")
+
 
 conexion.close()
 
