@@ -61,7 +61,16 @@ nombres_emp = (
     activos['apellido_materno'].astype(str).apply(limpiar_caracteres_raros).apply(normalizar_cadena).str.strip()
 ).str.lower()
 
+print("=== nombres_emp (primeros 10) ===")
+for i in range(min(10, len(nombres_emp))):
+    print(f"{i}: '{nombres_emp.iloc[i]}'")
+    
+
 activos['llave_limpia'] = nombres_emp.apply(quitar_acentos)
+
+print("=== llave_limpia (primeros 10) ===")
+for i in range(min(10, len(activos['llave_limpia']))):
+    print(f"{i}: '{activos['llave_limpia'].iloc[i]}'")
 
 # DICCIONARIOS DE BÚSQUEDA (Uno para cada campo que queremos jalar del sistema)
 mapa_codigo = dict(zip(activos['llave_limpia'], activos['codigo']))
