@@ -1,4 +1,5 @@
 import pandas
+from openpyxl import load_workbook
 from pathlib import Path
 import unicodedata
 import re
@@ -81,32 +82,6 @@ df_asignaciones_completa = df_asignaciones.merge(
     on='nombre_normalizado',
     how="left"
 )
-#REORDENAMOS LAS COLUMNAS
-columnas_asignaciones_completa = [
-    'codigo',
-    'nombre',
-    'apellido_paterno',
-    'apellido_materno',
-    'nombre_normalizado',
-    'Sucursal',
-    'Departamento',
-    'Puesto',
-    'Correo Gmail',
-    'Contraseña Gmail',
-    'Correo Institucional',
-    'Contraseña Institucional',
-    'Celular',
-    'Laptop',
-    'CPU',
-    'Monitor',
-    'Tablet',
-    'Zona',
-    'KNOX'
-]
-df_asignaciones_completa = df_asignaciones_completa[columnas_asignaciones_completa]
-#Escribimos el Resultado
-archivo_asignaciones_completo = dir_archivos / "Asignaciones_completo.xlsx"
-df_asignaciones_completa.to_excel(archivo_asignaciones_completo, sheet_name="Nuevo_asignaciones")
 
 #LEEMOS LA TABLA DE SUCURSALES
 db_name = "agrocisa_core.db"
@@ -127,34 +102,7 @@ df_asignaciones_sucursales = df_asignaciones_completa.merge(
     right_on = 'nombre_sucursal',
     how='left'
 )
-#REORDENAMOS LAS COLUMNAS
-columnas_asignaciones_sucursal = [
-    'codigo',
-    'nombre',
-    'apellido_paterno',
-    'apellido_materno',
-    'nombre_normalizado',
-    'id_sucursal',
-    'nombre_sucursal',
-    'Sucursal',
-    'Departamento',
-    'Puesto',
-    'Correo Gmail',
-    'Contraseña Gmail',
-    'Correo Institucional',
-    'Contraseña Institucional',
-    'Celular',
-    'Laptop',
-    'CPU',
-    'Monitor',
-    'Tablet',
-    'Zona',
-    'KNOX'
-]
-df_asignaciones_sucursales = df_asignaciones_sucursales[columnas_asignaciones_sucursal]
-#Escribimos el Resultado
-archivo_asignaciones_sucursales = dir_archivos / "Asignaciones_sucursales.xlsx"
-df_asignaciones_sucursales.to_excel(archivo_asignaciones_sucursales, sheet_name="Con Sucursal")
+
 #MERGE CON DEPARTAMENTOS
 df_asignaciones_departamentos = df_asignaciones_sucursales.merge(
     df_departamentos,
@@ -162,36 +110,6 @@ df_asignaciones_departamentos = df_asignaciones_sucursales.merge(
     right_on = 'nombre_departamento',
     how='left'
 )
-#REORDENAMOS LAS COLUMNAS
-columnas_asignaciones_departamentos = [
-    'codigo',
-    'nombre',
-    'apellido_paterno',
-    'apellido_materno',
-    'nombre_normalizado',
-    'id_sucursal',
-    'nombre_sucursal',
-    'Sucursal',
-    'id_departamento',
-    'nombre_departamento',
-    'Departamento',
-    'Puesto',
-    'Correo Gmail',
-    'Contraseña Gmail',
-    'Correo Institucional',
-    'Contraseña Institucional',
-    'Celular',
-    'Laptop',
-    'CPU',
-    'Monitor',
-    'Tablet',
-    'Zona',
-    'KNOX'
-]
-df_asignaciones_departamentos = df_asignaciones_departamentos[columnas_asignaciones_departamentos]
-
-archivo_asignaciones_departamentos = dir_archivos / "Asignaciones_departamentos.xlsx"
-df_asignaciones_departamentos.to_excel(archivo_asignaciones_departamentos, sheet_name="Con Departamentos")
 
 #MERGE CON PUESTOS
 df_asignaciones_puestos = df_asignaciones_departamentos.merge(
@@ -230,5 +148,5 @@ columnas_asignaciones_puestos = [
 ]
 df_asignaciones_puestos = df_asignaciones_puestos[columnas_asignaciones_puestos]
 
-archivo_asignaciones_puestos = dir_archivos / "Asignaciones_puestos.xlsx"
-df_asignaciones_puestos.to_excel(archivo_asignaciones_puestos, sheet_name="Con Puestos")
+archivo_asignaciones_puestos = dir_archivos / "Asignaciones_merged.xlsx"
+df_asignaciones_puestos.to_excel(archivo_asignaciones_puestos, sheet_name="Asignaciones", index=False)

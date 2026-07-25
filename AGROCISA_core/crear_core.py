@@ -138,9 +138,9 @@ def main():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS correos_electronicos (
             id_correo INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_correo TEXT,
             direccion_correo TEXT UNIQUE NOT NULL,
             password TEXT,
-            tipo_correo TEXT,
             codigo_empleado INTEGER,
             estatus TEXT DEFAULT 'ACTIVO',
             FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
