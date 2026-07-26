@@ -99,41 +99,22 @@ def main():
     print("¡Tabla 'equipos_2026' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS lineas_telefonicas (
-        numero INTEGER PRIMARY KEY,
-        codigo_empleado INTEGER NULL,
-        is_mpp INTEGER NULL,
-        plan_2024 TEXT,
-        mensualidad_2024 REAL,
-        gb_2024 REAL,
-        plan_2026 TEXT,
-        mensualidad_2026 REAL,
-        gb_base_2026 REAL,
-        gb_promocion_2026 REAL,
-        cost_difference REAL,
-        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo) ON DELETE SET NULL
+        CREATE TABLE IF NOT EXISTS tipos_correos_electronicos (
+            id_tipo_correo INTEGER PRIMARY KEY AUTOINCREMENT,
+            tipo_correo TEXT
         );
     """)
     
-    print("¡Tabla 'lineas_telcel' creada exitosamente en agrocisa_core.db!")
+    print("¡Tabla 'tipos_correos_electronicos' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS empleados (
-        codigo INTEGER PRIMARY KEY,
-        apellido_paterno TEXT,
-        apellido_materno TEXT,
-        nombre TEXT,
-        id_sucursal INTEGER,
-        id_departamento INTEGER,
-        id_puesto INTEGER,
-        numero_telefono INTEGER,
-        FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal),
-        FOREIGN KEY (id_departamento) REFERENCES departamentos(id_departamento),
-        FOREIGN KEY (id_puesto) REFERENCES puestos(id_puesto),
-        FOREIGN KEY (numero_telefono) REFERENCES lineas_telcel(numero)
-    );
+            CREATE TABLE IF NOT EXISTS estatus_correos_electronicos (
+                id_estatus_correo INTEGER PRIMARY KEY AUTOINCREMENT,
+                estatus_correo TEXT
+            );
     """)
-    print("¡Tabla 'empleados' creada exitosamente en agrocisa_core.db!")
+    
+    print("¡Tabla 'estatus_correos' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS correos_electronicos (
@@ -148,6 +129,43 @@ def main():
     """)
     
     print("¡Tabla 'correos_electrónicos' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS empleados (
+            codigo INTEGER PRIMARY KEY,
+            apellido_paterno TEXT,
+            apellido_materno TEXT,
+            nombre TEXT,
+            id_sucursal INTEGER,
+            id_departamento INTEGER,
+            id_puesto INTEGER,
+            numero_telefono INTEGER,
+            FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal),
+            FOREIGN KEY (id_departamento) REFERENCES departamentos(id_departamento),
+            FOREIGN KEY (id_puesto) REFERENCES puestos(id_puesto),
+            FOREIGN KEY (numero_telefono) REFERENCES lineas_telcel(numero)
+        );
+        """)
+    print("¡Tabla 'empleados' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS lineas_telefonicas (
+            numero INTEGER PRIMARY KEY,
+            codigo_empleado INTEGER NULL,
+            is_mpp INTEGER NULL,
+            plan_2024 TEXT,
+            mensualidad_2024 REAL,
+            gb_2024 REAL,
+            plan_2026 TEXT,
+            mensualidad_2026 REAL,
+            gb_2026 REAL,
+            gb_promocion_2026 REAL,
+            diferencia_2024_2026 REAL,
+            FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo) ON DELETE SET NULL
+            );
+    """)
+        
+    print("¡Tabla 'lineas_telcel' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_celulares (

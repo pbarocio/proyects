@@ -147,6 +147,29 @@ columnas_asignaciones_puestos = [
     'KNOX'
 ]
 df_asignaciones_puestos = df_asignaciones_puestos[columnas_asignaciones_puestos]
-
-archivo_asignaciones_puestos = dir_archivos / "Asignaciones_merged.xlsx"
+#CREAMOS EL NUEVO ARCHIVO PARA EL MAPEO DE TABLAS
+archivo_asignaciones_puestos = dir_archivos / "Estructura BDD.xlsx"
 df_asignaciones_puestos.to_excel(archivo_asignaciones_puestos, sheet_name="Asignaciones", index=False)
+
+#ELIMINAMOS LOS EMPLEADOS SIN CÓDIGO Y CREAMOS EL DATAFRAME DE EMPLEADOS
+df_empleados = df_asignaciones_puestos[
+    df_asignaciones_puestos["codigo"].notna() & (df_asignaciones_puestos["codigo"] != '')
+]
+#DEFINIMOS LA COLUMNA PARA LA TABLA EMPLEADOS
+columnas_empleados = [
+    'codigo',
+    'nombre',
+    'apellido_paterno',
+    'apellido_materno',
+    'id_sucursal',
+    'id_departamento',
+    'id_puesto',
+    'Zona',
+]
+df_empleados = df_empleados[columnas_empleados]
+
+#Escribimos la hoja de empleados
+with pandas.ExcelWriter(archivo_asignaciones_puestos, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+    df_empleados.to_excel(writer, sheet_name='Empleados', index=False)
+    
+print(f"\"{len(df_empleados)}\" empleados listos para exportar...")
