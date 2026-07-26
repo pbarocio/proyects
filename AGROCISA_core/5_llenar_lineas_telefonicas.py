@@ -83,10 +83,27 @@ columnas_lineas_telefonicas = [
     'diferencia_2024_2026',
 ]
 df_lineas_telefonicas = df_lineas_telefonicas_codigo[columnas_lineas_telefonicas]
-df_lineas_telefonicas.rename(columns={'codigo' : 'codigo_empleado'},inplace=True) 
+df_lineas_telefonicas.rename(columns={
+    'codigo' : 'codigo_empleado',
+    'mpp' : 'is_mpp'
+    },inplace=True)
 
 #Escribimos la hoja de empleados
 with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_lineas_telefonicas.to_excel(writer, sheet_name='Lineas Telefónicas', index=False)
     
 print(f"\"{len(df_lineas_telefonicas)}\" líneas telefónicas listas para importar")
+
+conexion = sqlite3.connect("agrocisa_core.db")
+
+df_lineas_telefonicas.to_sql(
+    name='lineas_telefonicas',
+    con=conexion,
+    if_exists='append',
+    index=False
+)
+
+conexion.commit()
+conexion.close()
+
+print(f"Se importó correctamente la tabla lineas_telefonicas")

@@ -117,20 +117,6 @@ def main():
     print("¡Tabla 'estatus_correos' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS correos_electronicos (
-            id_correo INTEGER PRIMARY KEY AUTOINCREMENT,
-            tipo_correo TEXT,
-            direccion_correo TEXT UNIQUE NOT NULL,
-            password TEXT,
-            codigo_empleado INTEGER,
-            estatus TEXT DEFAULT 'ACTIVO',
-            FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
-        );
-    """)
-    
-    print("¡Tabla 'correos_electrónicos' creada exitosamente en agrocisa_core.db!")
-    
-    cursor.execute("""
         CREATE TABLE IF NOT EXISTS empleados (
             codigo INTEGER PRIMARY KEY,
             apellido_paterno TEXT,
@@ -140,6 +126,7 @@ def main():
             id_departamento INTEGER,
             id_puesto INTEGER,
             numero_telefono INTEGER,
+            zona TEXT,
             FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal),
             FOREIGN KEY (id_departamento) REFERENCES departamentos(id_departamento),
             FOREIGN KEY (id_puesto) REFERENCES puestos(id_puesto),
@@ -147,6 +134,22 @@ def main():
         );
         """)
     print("¡Tabla 'empleados' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS correos_electronicos (
+            id_correo INTEGER PRIMARY KEY AUTOINCREMENT,
+            direccion_correo TEXT NOT NULL,
+            password TEXT,
+            id_tipo_correo INTEGER,
+            id_estatus_correo INTEGER,
+            codigo_empleado INTEGER,
+            FOREIGN KEY (id_tipo_correo) REFERENCES tipos_correos_electronicos(id_tipo_correo)
+            FOREIGN KEY (id_estatus_correo) REFERENCES estatus_correos_electronicos(id_estatus_correo)
+            FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
+        );
+    """)
+        
+    print("¡Tabla 'correos_electrónicos' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS lineas_telefonicas (
@@ -165,20 +168,17 @@ def main():
             );
     """)
         
-    print("¡Tabla 'lineas_telcel' creada exitosamente en agrocisa_core.db!")
+    print("¡Tabla 'lineas_telefonicas' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS inventario_celulares (
-        id_celular INTEGER PRIMARY KEY AUTOINCREMENT,
-        
+        CREATE TABLE IF NOT EXISTS inventario_celulares (        
         -- DATOS ÚNICOS DEL HARDWARE
-        numero_renovacion INTEGER NULL,             -- Sacada de la hoja 'Inventario Celulares'
-        imei TEXT UNIQUE NOT NULL,                  -- Sacada de la hoja 'Inventario Celulares'
-        numero_serie TEXT,                          -- Sacada de la hoja 'Inventario Celulares'
-        mac_address TEXT,                           -- Sacada de la hoja 'Inventario Celulares'
-        fecha_entrega DATE NULL,                    -- (Dato temporal para no hacer cagadero, una vez que se migre a la BDD oficial se quita)... Para no volver a leer el excel y hacer un desmadre de script
-        comentarios TEXT NULL,                      -- Sacada de la hoja 'Inventario Celulares (Comentarios libres para responsivas)'
-        observaciones TEXT NULL,                    -- Sacada de la hoja 'Inventario Celulares (observaciones libres para TI)'
+        numero_renovacion INTEGER NULL,
+        imei INTEGER PRIMARY KEY UNIQUE NOT NULL,
+        numero_serie TEXT,
+        mac_address TEXT,
+        comentarios TEXT NULL,
+        observaciones TEXT NULL,
         
         -- FOREIGN KEYS A CATÁLOGOS BASE
         numero INTEGER NULL,                        -- FK a 'lineas_telefonicas' (numero) -- Para responsiva(gb_promocion_2026)
@@ -188,17 +188,32 @@ def main():
         id_caja INTEGER NULL,                       -- FK a 'caja' (caja_opcion) -- Sacada de la hoja 'Inventario Celulares
         codigo_empleado INTEGER NULL,               -- FK a 'empleados' (codigo) --- De aquí con consulta sacamos Nombre Completo, Sucursal, Puesto, Correo Gmail, Correo Institucional
         
-        -- DEFINICIÓN OFICIAL DE RELACIONES
         FOREIGN KEY (numero) REFERENCES lineas_telefonicas (numero)
         FOREIGN KEY (id_equipo) REFERENCES equipos_2026(id_equipo),
-        FOREIGN KEY (id_condicion) REFERENCES condicion(condicion_opcion),
+        FOREIGN KEY (id_condicion) REFERENCES condicion(id_condicion),
         FOREIGN KEY (id_cargador) REFERENCES cargadores(id_cargador),
-        FOREIGN KEY (id_caja) REFERENCES cajas(caja_opcion),
+        FOREIGN KEY (id_caja) REFERENCES cajas(id_caja),
         FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
         );
     """)
     
     print("¡Tabla 'inventario_celulares' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS responsivas_celulares (
+        id_responsiva_celular INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha_entrega DATETIME NOT NULL,
+        codigo_empleado INTEGER,
+        numero INTEGER,
+        imei INTEGER,
+        
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo)
+        FOREIGN KEY (numero) REFERENCES lineas_telefonicas(numero),
+        FOREIGN KEY (imei) REFERENCES inventario_celulares(imei)
+        );
+    """)
+        
+    print("¡Tabla 'responsivas_celulares' creada exitosamente en agrocisa_core.db!")
     
     conexion.commit()
     conexion.close()

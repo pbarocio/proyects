@@ -13,20 +13,6 @@ pandas.set_option('display.max_columns', None)
 # Mostrar texto completo (sin truncar)
 pandas.set_option('display.max_colwidth', None)
 
-# CREATE TABLE IF NOT EXISTS lineas_telefonicas (
-#             numero INTEGER PRIMARY KEY,
-#             codigo_empleado INTEGER NULL,
-#             is_mpp INTEGER NULL,
-#             plan_2024 TEXT,
-#             mensualidad_2024 REAL,
-#             gb_2024 REAL,
-#             plan_2026 TEXT,
-#             mensualidad_2026 REAL,
-#             gb_2026 REAL,
-#             gb_promocion_2026 REAL,
-#             diferencia_2024_2026 REAL,
-
-
 def limpiar_entero (valor):
     if pandas.isna(valor):
         return None
@@ -150,15 +136,45 @@ columnas_inventario_celulares = [
     'fecha_entrega',
     'comentarios',
     'observaciones',
+    'numero',
     'id_equipo',
     'id_condicion',
     'id_cargador',
     'id_caja',
     'codigo_empleado',
-    'numero',
 ]
 df_inventaio_celulares = df_inventaio_celulares[columnas_inventario_celulares]
 
 #Escribimos la hoja de empleados
 with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_inventaio_celulares.to_excel(writer, sheet_name='Inventario Celulares', index=False)
+    
+columnas_inventario_celulares = [
+    'numero_renovacion',
+    'imei',
+    'numero_serie',
+    'mac_address',
+    'comentarios',
+    'observaciones',
+    'numero',
+    'id_equipo',
+    'id_condicion',
+    'id_cargador',
+    'id_caja',
+    'codigo_empleado',
+]
+df_inventaio_celulares = df_inventaio_celulares[columnas_inventario_celulares]
+
+conexion = sqlite3.connect("agrocisa_core.db")
+
+df_inventaio_celulares.to_sql(
+    name='inventario_celulares',
+    con=conexion,
+    if_exists='append',
+    index=False
+)
+
+conexion.commit()
+conexion.close()
+
+print(f"Se importó correctamente la tabla inventario_celulares")

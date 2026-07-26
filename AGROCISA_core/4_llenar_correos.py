@@ -103,3 +103,17 @@ print(f"\"{len(df_correos_id)}\" direcciones de correo listas para exportar...")
 #Escribimos una hoja para los correos de Gmail
 with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_correos_id.to_excel(writer, sheet_name='Correos', index=False)
+    
+conexion = sqlite3.connect("agrocisa_core.db")
+
+df_correos_id.to_sql(
+    name='correos_electronicos',
+    con=conexion,
+    if_exists='append',
+    index=False
+)
+
+conexion.commit()
+conexion.close()
+
+print(f"Se importó correctamente la tabla correos_electronicos")

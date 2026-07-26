@@ -158,18 +158,39 @@ df_empleados = df_asignaciones_puestos[
 #DEFINIMOS LA COLUMNA PARA LA TABLA EMPLEADOS
 columnas_empleados = [
     'codigo',
-    'nombre',
     'apellido_paterno',
     'apellido_materno',
+    'nombre',
     'id_sucursal',
     'id_departamento',
     'id_puesto',
+    'Celular',
     'Zona',
 ]
 df_empleados = df_empleados[columnas_empleados]
+
+df_empleados.rename(columns={
+    'Celular': 'numero_telefono',
+    'Zona' : 'zona',
+    },inplace=True)
 
 #Escribimos la hoja de empleados
 with pandas.ExcelWriter(archivo_asignaciones_puestos, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_empleados.to_excel(writer, sheet_name='Empleados', index=False)
     
 print(f"\"{len(df_empleados)}\" empleados listos para exportar...")
+
+conexion = sqlite3.connect("agrocisa_core.db")
+#cursor = conexion.cursor()
+
+df_empleados.to_sql(
+    name='empleados',
+    con=conexion,
+    if_exists='append',
+    index=False
+)
+
+conexion.commit()
+conexion.close()
+
+print(f"Se importó correctamente la tabla empleados")

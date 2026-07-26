@@ -268,7 +268,7 @@ def fill_mail_status(cursor):
 if __name__ == "__main__":
     connecction = sqlite3.connect("agrocisa_core.db")
     cursor = connecction.cursor()
-    excel_wb = Path.home() / "git" / "proyects" / "AGROCISA_core" / "Directorio.xlsx"
+    #excel_wb = Path.home() / "git" / "proyects" / "AGROCISA_core" / "Directorio 2026-07-21 martes.xlsx"
     
     fill_branches(cursor)
     fill_departments(cursor)
