@@ -99,7 +99,6 @@ with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_
 #LEEMOS LA TABLA DE estatus_correos_electronicos
 db_name = "agrocisa_core.db"
 conexion = sqlite3.connect(db_name)
-cursor = conexion.cursor()
 
 df_equipos_2026 = pandas.read_sql_query("SELECT id_equipo, marca_modelo, precio FROM equipos_2026", conexion)
 df_condicion = pandas.read_sql_query("SELECT id_condicion, condicion_opcion FROM condicion", conexion)
@@ -164,6 +163,8 @@ columnas_inventario_celulares = [
     'codigo_empleado',
 ]
 df_inventaio_celulares = df_inventaio_celulares[columnas_inventario_celulares]
+
+df_inventaio_celulares["id_estatus_celular"] = 1
 
 conexion = sqlite3.connect("agrocisa_core.db")
 

@@ -19,20 +19,6 @@ dir_archivos = Path.home() / "git" / "proyects" / "AGROCISA_core"
 #AGREGAMOS LA RUTA COMPLETA DEL ARCHIVO DE EXCEL
 directorio_nuevo = dir_archivos / "Estructura BDD.xlsx"
 
-# CREATE TABLE IF NOT EXISTS responsivas_celulares (
-#         id_responsiva_celular INTEGER PRIMARY KEY AUTOINCREMENT,
-#         fecha_entrega DATETIME NOT NULL,
-#         codigo_empleado INTEGER,
-#         numero INTEGER,
-#         imei INTEGER,
-        
-#         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo)
-#         FOREIGN KEY (numero) REFERENCES lineas_telefonicas(numero),
-#         FOREIGN KEY (imei) REFERENCES inventario_celulares(imei),
-#         FOREIGN KEY (id_condicion) REFERENCES condicion(id_condicion),
-#         FOREIGN KEY (id_cargador) REFERENCES cargadores(id_cargador),
-#         FOREIGN KEY (id_caja) REFERENCES cajas(id_caja)
-
 df_inventario_celulares = pandas.read_excel(directorio_nuevo, sheet_name='Inventario Celulares').copy()
 
 df_inventario_celulares = df_inventario_celulares.dropna(subset=['codigo_empleado']).dropna(subset=['fecha_entrega'])

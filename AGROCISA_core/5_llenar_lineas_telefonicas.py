@@ -88,6 +88,8 @@ df_lineas_telefonicas.rename(columns={
     'mpp' : 'is_mpp'
     },inplace=True)
 
+df_lineas_telefonicas["id_estatus_linea"] = 1
+
 #Escribimos la hoja de empleados
 with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_lineas_telefonicas.to_excel(writer, sheet_name='Lineas Telefónicas', index=False)

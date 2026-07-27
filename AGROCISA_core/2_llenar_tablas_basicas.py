@@ -157,7 +157,7 @@ def fill_hd_type(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO hd_tipo (hd_opcion) 
+    INSERT OR IGNORE INTO hdd_tipo (hdd_opcion) 
     VALUES (?);
     """, hd_type_list)
 
@@ -182,7 +182,7 @@ def fill_chargers(cursor):
         ("CON Cargador Original y Cable Genérico",),
         ("CON Cargador y Cable Genéricos",),
         ("CON Cargador original SIN cable",),
-        ("CON Cargador gernérico SIN Cable",),
+        ("CON Cargador genérico SIN Cable",),
         ("Sólo Cable",),
         ("SIN Cargador y SIN Cable",),
     ]
@@ -263,6 +263,103 @@ def fill_mail_status(cursor):
     """, mail_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_correos' nuevos al catálogo!")
+    
+def fill_employee_status(cursor):
+    employee_status = [
+        ("ACTIVO",),
+        ("INACTIVO",)
+    ]
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    cursor.executemany("""
+    INSERT OR IGNORE INTO estatus_empleados (estatus_empleado) 
+    VALUES (?);
+    """, employee_status)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'estatus_empleado' nuevos al catálogo!")
+    
+def fill_mobile_phone_status(cursor):
+    mobile_phone_status = [
+        ("ACTIVO",),
+        ("INACTIVO",)
+    ]
+
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    cursor.executemany("""
+    INSERT OR IGNORE INTO estatus_celulares (estatus_celular) 
+    VALUES (?);
+    """, mobile_phone_status)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'estatus_celulares' nuevos al catálogo!")
+    
+def fill_mobile_line_status(cursor):
+    mobile_line_status = [
+        ("ACTIVO",),
+        ("INACTIVO",)
+    ]
+
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    cursor.executemany("""
+    INSERT OR IGNORE INTO estatus_linea_telefonica (estatus_linea) 
+    VALUES (?);
+    """, mobile_line_status)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'estatus_linea_telefonica' nuevos al catálogo!")
+    
+def fill_cpu_status(cursor):
+    cpu_status = [
+        ("ACTIVO",),
+        ("INACTIVO",)
+    ]
+
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    cursor.executemany("""
+    INSERT OR IGNORE INTO estatus_cpu (estatus_cpu) 
+    VALUES (?);
+    """, cpu_status)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'estatus_cpu' nuevos al catálogo!")
+    
+def fill_laptops_status(cursor):
+    laptops_status = [
+        ("ACTIVO",),
+        ("INACTIVO",)
+    ]
+
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    cursor.executemany("""
+    INSERT OR IGNORE INTO estatus_laptops (estatus_laptop) 
+    VALUES (?);
+    """, laptops_status)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'estatus_laptop' nuevos al catálogo!")
+
+def fill_monitor_status(cursor):
+    monitor_status = [
+        ("ACTIVO",),
+        ("INACTIVO",)
+    ]
+
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    cursor.executemany("""
+    INSERT OR IGNORE INTO estatus_monitores (estatus_monitor) 
+    VALUES (?);
+    """, monitor_status)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'estatus_monitor' nuevos al catálogo!")
+            
+def fill_tablets_status(cursor):
+    tablets_status = [
+        ("ACTIVO",),
+        ("INACTIVO",)
+    ]
+
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    cursor.executemany("""
+    INSERT OR IGNORE INTO estatus_tablets (estatus_tablet) 
+    VALUES (?);
+    """, tablets_status)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'estatus_tablets' nuevos al catálogo!")
 
 # El mismo candado aquí para evitar cargas de datos por accidente
 if __name__ == "__main__":
@@ -282,6 +379,11 @@ if __name__ == "__main__":
     fill_mobile_phones_2026(cursor)
     fill_mail_type(cursor)
     fill_mail_status(cursor)
-    
+    fill_employee_status(cursor)
+    fill_mobile_phone_status(cursor)
+    fill_mobile_line_status(cursor)
+    fill_cpu_status(cursor) 
+    fill_monitor_status(cursor)
+    fill_tablets_status(cursor)
     connecction.commit()
     connecction.close()

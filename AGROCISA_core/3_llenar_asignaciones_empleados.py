@@ -174,6 +174,8 @@ df_empleados.rename(columns={
     'Zona' : 'zona',
     },inplace=True)
 
+df_empleados["id_estatus_empleado"] = 1
+
 #Escribimos la hoja de empleados
 with pandas.ExcelWriter(archivo_asignaciones_puestos, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_empleados.to_excel(writer, sheet_name='Empleados', index=False)
