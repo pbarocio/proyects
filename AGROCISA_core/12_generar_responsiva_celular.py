@@ -112,6 +112,66 @@ conexion.close()
 df_responsivas["precio"] = df_responsivas["precio"].apply(formatear_precio)
 df_responsivas["precio_letras"] = df_responsivas["precio"].apply(convertir_precio_letras)
 
+def generar_responsiva_celular(codigo_empleado, imei_equipo):
+    # 1. Conexión a la BDD (SQLite)
+    conn = sqlite3.connect("agrocisa.db")
+    cursor = conn.cursor()
+    
+    # 2. Hacemos la consulta cruzada (JOIN) para traer datos del empleado y del celular
+    query = """
+        SELECT 
+            e.codigo,
+            e.nombre || ' ' || e.apellido_paterno || ' ' || e.apellido_materno AS nombre_completo,
+            d.nombre_departamento,
+            c.marca_modelo_df,
+            c.numero_serie,
+            c.imei,
+            c.numero,
+            c.fecha_entrega,
+            c.comentarios
+        FROM empleados e
+        JOIN responsivas_celulares r ON e.codigo = r.codigo_empleado
+        JOIN inventario_celulares c ON r.imei = c.imei
+        WHERE e.codigo = ? AND c.imei = ?
+    """
+    
+    cursor.execute(query, (codigo_empleado, imei_equipo))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        print("❌ No se encontraron datos para esa combinación.")
+        return
+
+    # 3. Mapeamos los datos en un diccionario que coincida con las {{ llaves }} del Word
+    contexto = {
+        'codigo': row[0],
+        'nombre_empleado': row[1],
+        'departamento': row[2],
+        'marca_modelo': row[3],
+        'numero_serie': row[4],
+        'imei': row[5],
+        'numero_telefono': row[6],
+        'fecha_entrega': row[7],
+        'observaciones': row[8]
+    }
+
+    # 4. Cargamos la plantilla de Word y renderizamos de un solo trancazo
+    doc = DocxTemplate("plantilla_celular.docx")
+    doc.render(contexto)
+    
+    # 5. Guardamos el archivo final personalizado
+    nombre_archivo = f"Responsiva_Celular_{contexto['codigo']}_{contexto['imei']}.docx"
+    doc.save(nombre_archivo)
+    
+    print(f"✅ ¡Responsiva generada con éxito!: {nombre_archivo}")
+
+# # --- PRUEBA DE EJECUCIÓN ---
+# if __name__ == "__main__":
+#     # Le pasas el código del empleado y el IMEI
+#     generar_responsiva_celular(codigo_empleado=848, imei_equipo="357369477220667")
+
+
 # Exportar a Excel
 with pandas.ExcelWriter("responsivas_celulares.xlsx", engine='openpyxl') as writer:
     df_responsivas.to_excel(writer, sheet_name='Responsivas', index=False)

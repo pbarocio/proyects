@@ -202,22 +202,20 @@ def main():
     print("¡Tabla 'lineas_telefonicas' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS inventario_celulares (        
-        -- DATOS ÚNICOS DEL HARDWARE
+        CREATE TABLE IF NOT EXISTS inventario_celulares (
         numero_renovacion INTEGER NULL,
         imei INTEGER PRIMARY KEY UNIQUE NOT NULL,
         numero_serie TEXT,
         mac_address TEXT,
         comentarios TEXT NULL,
         observaciones TEXT NULL,
-        
-        -- FOREIGN KEYS A CATÁLOGOS BASE
-        numero INTEGER NULL,                        -- FK a 'lineas_telefonicas' (numero) -- Para responsiva(gb_promocion_2026)
-        id_equipo INTEGER NOT NULL,                 -- FK a 'equipos_2026' (id_equipo) Para responsiva -- (Marca_Modelo,Precio)
-        id_condicion INTEGER NULL,                  -- FK a 'condicion' (condicion_opcion) Para responsiva(condicion_opcion) -- Sacada de la hoja 'Inventario Celulares'
-        id_cargador INTEGER NULL,                   -- FK a 'cargadores' (id_cargador) Pra responsiva (cargador_opcion) -- Sacada de la hoja 'Inventario Celulares
-        id_caja INTEGER NULL,                       -- FK a 'caja' (caja_opcion) -- Sacada de la hoja 'Inventario Celulares
-        codigo_empleado INTEGER NULL,               -- FK a 'empleados' (codigo) --- De aquí con consulta sacamos Nombre Completo, Sucursal, Puesto, Correo Gmail, Correo Institucional
+        numero INTEGER NULL,
+        id_equipo INTEGER NOT NULL,
+        id_condicion INTEGER NULL,
+        id_cargador INTEGER NULL,
+        id_caja INTEGER NULL,
+        fecha_entrega DATETIME,
+        codigo_empleado INTEGER NULL,
         id_estatus_celular INTEGER,
         
         FOREIGN KEY (numero) REFERENCES lineas_telefonicas (numero)
@@ -231,22 +229,6 @@ def main():
     """)
     
     print("¡Tabla 'inventario_celulares' creada exitosamente en agrocisa_core.db!")
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS responsivas_celulares (
-        id_responsiva_celular INTEGER PRIMARY KEY AUTOINCREMENT,
-        fecha_entrega DATETIME NOT NULL,
-        codigo_empleado INTEGER,
-        numero INTEGER,
-        imei INTEGER,
-        
-        FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo)
-        FOREIGN KEY (numero) REFERENCES lineas_telefonicas(numero),
-        FOREIGN KEY (imei) REFERENCES inventario_celulares(imei)
-        );
-    """)
-        
-    print("¡Tabla 'responsivas_celulares' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS estatus_cpu (
@@ -270,21 +252,21 @@ def main():
         sistema_operativo TEXT,
         mac_address_lan TEXT,
         mac_address_wifi TEXT,
-        id_condicion INTEGER,
-        precio REAL,
-        id_renovacion INTEGER,
+        precio INTEGER,
         comentarios TEXT,
         observaciones TEXT,
         fecha_mantenimiento DATETIME,
+        id_condicion INTEGER,
+        id_renovacion INTEGER,
         fecha_entrega DATETIME,
-        id_estatus_cpu INTEGER,
         codigo_empleado INTEGER,
+        id_estatus_cpu INTEGER,
         
         FOREIGN KEY (id_hdd_tipo) REFERENCES hdd_tipo (id_hdd_tipo),
         FOREIGN KEY (id_condicion) REFERENCES condicion (id_condicion)
         FOREIGN KEY (id_renovacion) REFERENCES renovacion(id_renovacion),
-        FOREIGN KEY (id_estatus_cpu) REFERENCES estatus_cpu(id_estatus_cpu),
-        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo),
+        FOREIGN KEY (id_estatus_cpu) REFERENCES estatus_cpu(id_estatus_cpu)
         );
     """)
             
@@ -298,7 +280,7 @@ def main():
     """)
             
     print("¡Tabla 'estatus_laptops' creada exitosamente en agrocisa_core.db!")
-    
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_laptops (
         hostname TEXT,
@@ -308,29 +290,29 @@ def main():
         procesador TEXT,
         datos_memoria_ram TEXT,
         memoria_ram TEXT,
-        id_hdd_tipo INTEGER,
         datos_almacenamiento TEXT,
         almacenamiento TEXT,
         motherboard TEXT,
         sistema_operativo TEXT,
         mac_address_lan TEXT,
         mac_address_wifi TEXT,
-        id_cargador INTEGER,
-        id_condicion INTEGER,
-        precio REAL,
-        id_renovacion INTEGER,
+        precio INTEGER,
         comentarios TEXT,
         observaciones TEXT,
+        id_hdd_tipo INTEGER,
+        id_cargador INTEGER,
+        id_condicion INTEGER,
+        id_renovacion INTEGER,
         fecha_entrega DATETIME,
-        id_estatus_laptop INTEGER,
         codigo_empleado INTEGER,
+        id_estatus_laptop INTEGER,
         
         FOREIGN KEY (id_hdd_tipo) REFERENCES hdd_tipo (id_hdd_tipo),
         FOREIGN KEY (id_cargador) REFERENCES cargadores (id_cargador)
         FOREIGN KEY (id_condicion) REFERENCES condicion (id_condicion)
         FOREIGN KEY (id_renovacion) REFERENCES renovacion(id_renovacion),
-        FOREIGN KEY (id_estatus_laptop) REFERENCES estatus_laptops(id_estatus_laptop),
-        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo),
+        FOREIGN KEY (id_estatus_laptop) REFERENCES estatus_laptops(id_estatus_laptop)
         );
     """)
             
@@ -344,7 +326,7 @@ def main():
     """)
             
     print("¡Tabla 'estatus_monitores' creada exitosamente en agrocisa_core.db!")
-    
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_monitores (
         hostname TEXT,
@@ -352,19 +334,19 @@ def main():
         modelo TEXT,
         numero_serie TEXT PRIMARY KEY NOT NULL,
         resolucion TEXT,
-        id_condicion INTEGER,
-        precio REAL,
-        id_renovacion INTEGER,
+        precio INTEGER,
         comentarios TEXT,
         observaciones TEXT,
+        id_condicion INTEGER,
+        id_renovacion INTEGER,
         fecha_entrega DATETIME,
-        id_estatus_monitor INTEGER,
         codigo_empleado INTEGER,
+        id_estatus_monitor INTEGER,
         
-        FOREIGN KEY (id_condicion) REFERENCES condicion (id_condicion)
+        FOREIGN KEY (id_condicion) REFERENCES condicion (id_condicion),
         FOREIGN KEY (id_renovacion) REFERENCES renovacion(id_renovacion),
-        FOREIGN KEY (id_estatus_monitor) REFERENCES estatus_monitores(id_estatus_monitor),
-        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo),
+        FOREIGN KEY (id_estatus_monitor) REFERENCES estatus_monitores(id_estatus_monitor)
         );
     """)
             
@@ -379,7 +361,6 @@ def main():
             
     print("¡Tabla 'estatus_tablets' creada exitosamente en agrocisa_core.db!")
 
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_tablets (
         marca TEXT,
@@ -387,24 +368,96 @@ def main():
         imei INTEGER,
         numero_serie TEXT PRIMARY KEY NOT NULL,
         mac_address TEXT,
-        id_condicion INTEGER,
-        id_cargador INTEGER,
         precio INTEGER,
         comentarios TEXT,
         observaciones TEXT,
+        id_condicion INTEGER,
+        id_cargador INTEGER,
         fecha_entrega DATETIME,
-        id_estatus_tablet INTEGER,
         codigo_empleado INTEGER,
+        id_estatus_tablet INTEGER,
         
         FOREIGN KEY (id_condicion) REFERENCES condicion (id_condicion)
         FOREIGN KEY (id_cargador) REFERENCES cargadores(id_cargador),
-        FOREIGN KEY (id_estatus_tablet) REFERENCES estatus_tablets(id_estatus_tablet),
-        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo),
+        FOREIGN KEY (id_estatus_tablet) REFERENCES estatus_tablets(id_estatus_tablet)
         );
     """)
     
     print("¡Tabla 'inventario_tablets' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS responsivas_celulares (
+        id_responsiva_celular INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha_entrega DATETIME NOT NULL,
+        codigo_empleado INTEGER,
+        numero INTEGER,
+        imei INTEGER,
+        
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo)
+        FOREIGN KEY (numero) REFERENCES lineas_telefonicas(numero),
+        FOREIGN KEY (imei) REFERENCES inventario_celulares(imei)
+        );
+    """)
+        
+    print("¡Tabla 'responsivas_celulares' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS responsivas_cpu (
+        id_responsiva_cpu INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha_entrega DATETIME NOT NULL,
+        codigo_empleado INTEGER,
+        hostname TEXT,
+        
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
+        FOREIGN KEY (hostname) REFERENCES inventario_cpu(hostname)
+        );
+    """)
+        
+    print("¡Tabla 'responsivas_cpu' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS responsivas_laptops (
+        id_responsiva_cpu INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha_entrega DATETIME NOT NULL,
+        codigo_empleado INTEGER,
+        numero_serie TEXT,
+        
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
+        FOREIGN KEY (numero_serie) REFERENCES inventario_laptops(numero_serie)
+        );
+    """)
+        
+    print("¡Tabla 'responsivas_laptops' creada exitosamente en agrocisa_core.db!")
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS responsivas_monitores (
+        id_responsiva_cpu INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha_entrega DATETIME NOT NULL,
+        codigo_empleado INTEGER,
+        numero_serie TEXT,
+        
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
+        FOREIGN KEY (numero_serie) REFERENCES inventario_monitores(numero_serie)
+        );
+    """)
+        
+    print("¡Tabla 'responsivas_monitores' creada exitosamente en agrocisa_core.db!")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS responsivas_tablets (
+        id_responsiva_cpu INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha_entrega DATETIME NOT NULL,
+        codigo_empleado INTEGER,
+        numero_serie TEXT,
+        
+        FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
+        FOREIGN KEY (numero_serie) REFERENCES inventario_tablets(numero_serie)
+        );
+    """)
+        
+    print("¡Tabla 'responsivas_tablets' creada exitosamente en agrocisa_core.db!")
+    
     conexion.commit()
     conexion.close()
 
