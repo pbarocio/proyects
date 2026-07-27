@@ -255,12 +255,11 @@ def main():
         );
     """)
             
-    print("¡Tabla 'estatus_cpu' creada exitosamente en agrocisa_core.db!")
-    
+    print("¡Tabla 'estatus_cpu' creada exitosamente en agrocisa_core.db!")  
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_cpu (
-        id_cpu INTEGER PRIMARY KEY AUTOINCREMENT,
-        hostname TEXT UNIQUE,
+        hostname TEXT PRIMARY KEY NOT NULL,
         procesador TEXT,
         datos_memoria_ram TEXT,
         memoria_ram TEXT,
@@ -272,10 +271,10 @@ def main():
         mac_address_lan TEXT,
         mac_address_wifi TEXT,
         id_condicion INTEGER,
-        observaciones TEXT,
         precio REAL,
         id_renovacion INTEGER,
         comentarios TEXT,
+        observaciones TEXT,
         fecha_mantenimiento DATETIME,
         fecha_entrega DATETIME,
         id_estatus_cpu INTEGER,
@@ -349,7 +348,8 @@ def main():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_monitores (
         hostname TEXT,
-        marca_modelo TEXT,
+        marca TEXT,
+        modelo TEXT,
         numero_serie TEXT PRIMARY KEY NOT NULL,
         resolucion TEXT,
         id_condicion INTEGER,
@@ -378,6 +378,7 @@ def main():
     """)
             
     print("¡Tabla 'estatus_tablets' creada exitosamente en agrocisa_core.db!")
+
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_tablets (

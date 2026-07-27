@@ -67,7 +67,6 @@ conexion = sqlite3.connect(db_name)
 query = """
     SELECT 
     r.fecha_entrega,
-    e.codigo,
     e.nombre || ' ' || e.apellido_paterno || ' ' || e.apellido_materno AS empleado,
     s.nombre_sucursal AS sucursal,
     d.nombre_departamento AS departamento,

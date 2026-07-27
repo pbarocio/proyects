@@ -149,6 +149,7 @@ columnas_laptops = [
     'comentarios',
     'observaciones',
     'fecha_entrega',
+    'id_estatus_laptop'
     'codigo_empleado'
 ]
 

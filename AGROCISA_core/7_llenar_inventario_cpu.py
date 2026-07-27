@@ -114,6 +114,7 @@ df_inventario_cpu = df_datos_cpu.merge(
     how='left'
 )
 
+
 columnas_cpu = [
     'hostname',
     'procesador',
@@ -127,10 +128,10 @@ columnas_cpu = [
     'mac_address_lan',
     'mac_address_wifi',
     'id_condicion',
-    'observaciones',
     'precio',
     'id_renovacion',
     'comentarios',
+    'observaciones',
     'fecha_mantenimiento',
     'fecha_entrega',
     'id_estatus_cpu',

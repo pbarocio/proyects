@@ -32,7 +32,7 @@ df_datos_monitores.rename(columns={
     'Costo' : 'precio',
     'Observaciones' : 'comentarios',
     'Fecha de entrega' : 'fecha_entrega',
-    'Marca-Modelo' : 'marca_modelo',
+    'Marca-Modelo' : 'modelo',
     'Número de Serie' : 'numero_serie',
     'Resolución' : 'resolucion',
     'Renovar' : 'renovar',
@@ -52,7 +52,7 @@ map_codigo = dict(zip(df_datos_empleados['Monitor'], df_datos_empleados['codigo'
 
 columnas_monitores = [
     'hostname',
-    'marca_modelo',
+    'modelo',
     'numero_serie',
     'resolucion',
     'condicion',
@@ -86,9 +86,12 @@ df_inventario_monitores = df_datos_monitores.merge(
     how='left'
 )
 
+df_inventario_monitores['marca'] = ""
+
 columnas_monitores = [
     'hostname',
-    'marca_modelo',
+    'marca',
+    'modelo',
     'numero_serie',
     'resolucion',
     'id_condicion',
