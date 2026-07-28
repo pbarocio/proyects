@@ -97,10 +97,10 @@ df_responsivas_tablets.to_sql(
 
 print(f"Se inyectó correctamente la tabla 'responsivas_tablets'")
 
-query_delete_fecha_entrega_celuares = """
-    ALTER TABLE inventario_celulares 
-    DROP COLUMN fecha_entrega;
-"""
+# query_delete_fecha_entrega_celuares = """
+#     ALTER TABLE inventario_celulares 
+#     DROP COLUMN fecha_entrega;
+# """
 
 #pandas.read_sql_query(query_delete_fecha_entrega_celuares, conexion)
 
@@ -135,4 +135,4 @@ print(f"\"{len(df_responsivas_monitores)}\" responsivas_monitores listas para in
 with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_responsivas_tablets.to_excel(writer, sheet_name='Responsivas Tablets', index=False)
 
-print(f"\"{len(df_responsivas_laptops)}\" responsivas_tablets listas para inyectar...")
+print(f"\"{len(df_responsivas_tablets)}\" responsivas_tablets listas para inyectar...")
