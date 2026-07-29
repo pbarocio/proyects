@@ -1,4 +1,4 @@
-import sqlite3
+from db_config import get_connection
 import openpyxl
 from pathlib import Path
 
@@ -14,8 +14,8 @@ def fill_branches(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO sucursales (nombre_sucursal) 
-    VALUES (?);
+    INSERT IGNORE INTO sucursales (nombre_sucursal) 
+    VALUES (%s);
     """, branches_list)
 
     print(f"¡Se han cargado {cursor.rowcount} sucursales nuevas al catálogo de agrocisa_core.db!")
@@ -50,8 +50,8 @@ def fill_departments(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO departamentos (nombre_departamento) 
-    VALUES (?);
+    INSERT IGNORE INTO departamentos (nombre_departamento) 
+    VALUES (%s);
     """, departments_list)
 
     print(f"¡Se han cargado {cursor.rowcount} 'departamentos' nuevos al catálogo de agrocisa_core.db!")
@@ -114,8 +114,8 @@ def fill_positions(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO puestos (nombre_puesto) 
-    VALUES (?);
+    INSERT IGNORE INTO puestos (nombre_puesto) 
+    VALUES (%s);
     """, positions_list)
 
     print(f"¡Se han cargado {cursor.rowcount} puestos nuevos al catálogo de agrocisa_core.db!")
@@ -127,8 +127,8 @@ def fill_box(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO caja (caja_opcion) 
-    VALUES (?);
+    INSERT IGNORE INTO caja (caja_opcion) 
+    VALUES (%s);
     """, box_list)
 
     print(f"¡Se han cargado {cursor.rowcount} caja_options nuevas al catálogo de agrocisa_core.db!")
@@ -143,8 +143,8 @@ def fill_conditions(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO condicion (condicion_opcion) 
-    VALUES (?);
+    INSERT IGNORE INTO condicion (condicion_opcion) 
+    VALUES (%s);
     """, condition_list)
 
     print(f"¡Se han cargado {cursor.rowcount} condicion_opcion nuevas al catálogo de agrocisa_core.db!")
@@ -157,8 +157,8 @@ def fill_hd_type(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO hdd_tipo (hdd_opcion) 
-    VALUES (?);
+    INSERT IGNORE INTO hdd_tipo (hdd_opcion) 
+    VALUES (%s);
     """, hd_type_list)
 
     print(f"¡Se han cargado {cursor.rowcount} hd_tipo nuevas al catálogo de agrocisa_core.db!")
@@ -170,8 +170,8 @@ def fill_renew(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO renovacion (renovacion_opcion) 
-    VALUES (?);
+    INSERT IGNORE INTO renovacion (renovacion_opcion) 
+    VALUES (%s);
     """, renew_list)
 
     print(f"¡Se han cargado {cursor.rowcount} 'renovacion_opciones' nuevas al catálogo de agrocisa_core.db!")
@@ -188,8 +188,8 @@ def fill_chargers(cursor):
     ]
 
     cursor.executemany("""
-    INSERT OR IGNORE INTO cargadores (cargador_opcion) 
-    VALUES (?);
+    INSERT IGNORE INTO cargadores (cargador_opcion) 
+    VALUES (%s);
     """, charger_list)
 
     print(f"¡Se han cargado {cursor.rowcount} 'cargador_opciones' nuevas al catálogo de agrocisa_core.db!")
@@ -205,10 +205,10 @@ def fill_phone_plans(cursor):
         ("5", 649, 45.0)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO planes_telcel_2026 (nombre_plan, mensualidad, datos_incluidos) 
-    VALUES (?, ?, ?);
+    INSERT IGNORE INTO planes_telcel_2026 (nombre_plan, mensualidad, datos_incluidos) 
+    VALUES (%s, %s, %s);
     """, plans_list)
 
     print(f"¡Se han cargado {cursor.rowcount} 'planes_telcel_2026' nuevos al catálogo!")
@@ -228,10 +228,10 @@ def fill_mobile_phones_2026(cursor):
         ("Honor X5 Plus", 800)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO equipos_2026 (marca_modelo, precio) 
-    VALUES (?, ?);
+    INSERT IGNORE INTO equipos_2026 (marca_modelo, precio) 
+    VALUES (%s, %s);
     """, mobile_phones_list)
 
     print(f"¡Se han cargado {cursor.rowcount} 'equipos_2026' nuevos al catálogo!")
@@ -242,10 +242,10 @@ def fill_mail_type(cursor):
         ("GMAIL",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO tipos_correos_electronicos (tipo_correo) 
-    VALUES (?);
+    INSERT IGNORE INTO tipos_correos_electronicos (tipo_correo) 
+    VALUES (%s);
     """, mail_type)
 
     print(f"¡Se han cargado {cursor.rowcount} 'tipos_correos_electronicos' nuevos al catálogo!")
@@ -256,10 +256,10 @@ def fill_mail_status(cursor):
         ("INACTIVO",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO estatus_correos_electronicos (estatus_correo) 
-    VALUES (?);
+    INSERT IGNORE INTO estatus_correos_electronicos (estatus_correo) 
+    VALUES (%s);
     """, mail_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_correos' nuevos al catálogo!")
@@ -269,10 +269,10 @@ def fill_employee_status(cursor):
         ("ACTIVO",),
         ("INACTIVO",)
     ]
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO estatus_empleados (estatus_empleado) 
-    VALUES (?);
+    INSERT IGNORE INTO estatus_empleados (estatus_empleado) 
+    VALUES (%s);
     """, employee_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_empleado' nuevos al catálogo!")
@@ -283,10 +283,10 @@ def fill_mobile_phone_status(cursor):
         ("INACTIVO",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO estatus_celulares (estatus_celular) 
-    VALUES (?);
+    INSERT IGNORE INTO estatus_celulares (estatus_celular) 
+    VALUES (%s);
     """, mobile_phone_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_celulares' nuevos al catálogo!")
@@ -297,10 +297,10 @@ def fill_mobile_line_status(cursor):
         ("INACTIVO",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO estatus_linea_telefonica (estatus_linea) 
-    VALUES (?);
+    INSERT IGNORE INTO estatus_linea_telefonica (estatus_linea) 
+    VALUES (%s);
     """, mobile_line_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_linea_telefonica' nuevos al catálogo!")
@@ -311,10 +311,10 @@ def fill_cpu_status(cursor):
         ("INACTIVO",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO estatus_cpu (estatus_cpu) 
-    VALUES (?);
+    INSERT IGNORE INTO estatus_cpu (estatus_cpu) 
+    VALUES (%s);
     """, cpu_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_cpu' nuevos al catálogo!")
@@ -325,10 +325,10 @@ def fill_laptops_status(cursor):
         ("INACTIVO",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO estatus_laptops (estatus_laptop) 
-    VALUES (?);
+    INSERT IGNORE INTO estatus_laptops (estatus_laptop) 
+    VALUES (%s);
     """, laptops_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_laptop' nuevos al catálogo!")
@@ -339,10 +339,10 @@ def fill_monitor_status(cursor):
         ("INACTIVO",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO estatus_monitores (estatus_monitor) 
-    VALUES (?);
+    INSERT IGNORE INTO estatus_monitores (estatus_monitor) 
+    VALUES (%s);
     """, monitor_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_monitor' nuevos al catálogo!")
@@ -353,17 +353,17 @@ def fill_tablets_status(cursor):
         ("INACTIVO",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '?'
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT OR IGNORE INTO estatus_tablets (estatus_tablet) 
-    VALUES (?);
+    INSERT IGNORE INTO estatus_tablets (estatus_tablet) 
+    VALUES (%s);
     """, tablets_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_tablets' nuevos al catálogo!")
 
 # El mismo candado aquí para evitar cargas de datos por accidente
 if __name__ == "__main__":
-    connecction = sqlite3.connect("agrocisa_core.db")
+    connecction = get_connection()
     cursor = connecction.cursor()
     #excel_wb = Path.home() / "git" / "proyects" / "AGROCISA_core" / "Directorio 2026-07-21 martes.xlsx"
     
