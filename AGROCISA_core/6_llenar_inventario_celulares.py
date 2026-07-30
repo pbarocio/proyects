@@ -224,7 +224,7 @@ columnas_inventario_celulares = [
 df_inventaio_celulares = df_inventaio_celulares[columnas_inventario_celulares]
 
 df_inventaio_celulares.to_sql(
-    name='inventario_celulares',
+    name='inventario_celulares_2026',
     con=engine,
     if_exists='append',
     index=False

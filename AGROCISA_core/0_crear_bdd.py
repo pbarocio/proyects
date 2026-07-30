@@ -31,6 +31,7 @@ def crear_base_datos():
         
     except pymysql.Error as e:
         print(f"❌ Error al crear la BDD: {e}")
+        return False
         conexion.rollback()
     finally:
         cursor.close()

@@ -6,12 +6,19 @@ import time
 def run_script(script_name):
     print(f"\n🚀 Ejecutando {script_name}...")
     # Ejecuta el script con el mismo Python que está corriendo esto
-    result = subprocess.run([sys.executable, script_name], capture_output=True, text=True)
+    result = subprocess.run(
+        [sys.executable, script_name], 
+        capture_output=True, 
+        text=True)
     
+    if result.stdout: # ✅ Mostrar TODO lo que salió en consola
+        print(result.stdout)
+    
+    if result.stderr:
+        print(f"⚠️  Stderr:\n{result.stderr}")
+        
     if result.returncode == 0:
         print(f"✅ {script_name} completado con éxito")
-        # Opcional: imprime la salida para ver si todo bien
-        # print(result.stdout) 
         return True
     else:
         print(f"❌ ERROR en {script_name}")

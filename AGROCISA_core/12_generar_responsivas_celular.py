@@ -128,7 +128,7 @@ if __name__ == "__main__":
         JOIN sucursales s ON e.id_sucursal = s.id_sucursal
         JOIN departamentos d ON e.id_departamento = d.id_departamento
         JOIN puestos p ON e.id_puesto = p.id_puesto
-        JOIN inventario_celulares ic ON r.imei = ic.imei
+        JOIN inventario_celulares_2026 ic ON r.imei = ic.imei
         JOIN equipos_2026 eq ON ic.id_equipo = eq.id_equipo
         JOIN condicion c ON ic.id_condicion = c.id_condicion
         JOIN cargadores ca ON ic.id_cargador = ca.id_cargador

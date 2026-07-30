@@ -181,28 +181,7 @@ def main():
     """)
             
     print("¡Tabla 'estatus_tablets' creada exitosamente en agrocisa_core.db!")
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS lineas_telefonicas (
-            numero VARCHAR(20) PRIMARY KEY,
-            codigo_empleado VARCHAR(20) NULL,
-            is_mpp INT NULL,
-            plan_2024 VARCHAR(100),
-            mensualidad_2024 DECIMAL(10,2),
-            gb_2024 DECIMAL(10,2),
-            plan_2026 VARCHAR(100),
-            mensualidad_2026 DECIMAL(10,2),
-            gb_2026 DECIMAL(10,2),
-            gb_promocion_2026 DECIMAL(10,2),
-            diferencia_2024_2026 DECIMAL(10,2),
-            id_estatus_linea INT,
-            FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo) ON DELETE SET NULL,
-            FOREIGN KEY (id_estatus_linea) REFERENCES estatus_linea_telefonica (id_estatus_linea)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """)
-        
-    print("¡Tabla 'lineas_telefonicas' creada exitosamente en agrocisa_core.db!")
-
+    
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS empleados (
             codigo VARCHAR(20) PRIMARY KEY,
@@ -226,10 +205,34 @@ def main():
     print("¡Tabla 'empleados' creada exitosamente en agrocisa_core.db!")
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS lineas_telefonicas (
+            numero VARCHAR(20) PRIMARY KEY,
+            is_mpp INT NULL,
+            comentarios TEXT,
+            plan_2024 VARCHAR(100),
+            mensualidad_2024 DECIMAL(10,2),
+            gb_2024 DECIMAL(10,2),
+            plan_2026 VARCHAR(100),
+            mensualidad_2026 DECIMAL(10,2),
+            gb_2026 DECIMAL(10,2),
+            gb_promocion_2026 DECIMAL(10,2),
+            diferencia_2024_2026 DECIMAL(10,2),
+            codigo_empleado VARCHAR(20) NULL,
+            id_estatus_linea INT,
+            FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo) ON DELETE SET NULL,
+            FOREIGN KEY (id_estatus_linea) REFERENCES estatus_linea_telefonica (id_estatus_linea)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+        
+    print("¡Tabla 'lineas_telefonicas' creada exitosamente en agrocisa_core.db!")
+
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS correos_electronicos (
             id_correo INT PRIMARY KEY AUTO_INCREMENT,
             direccion_correo VARCHAR(200) NOT NULL,
             password VARCHAR(100),
+            alias TEXT,
+            comentarios TEXT,
             id_tipo_correo INT,
             id_estatus_correo INT,
             codigo_empleado VARCHAR(20),
@@ -242,7 +245,7 @@ def main():
     print("¡Tabla 'correos_electrónicos' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS inventario_celulares (
+        CREATE TABLE IF NOT EXISTS inventario_celulares_2026 (
         numero_renovacion VARCHAR(20) NULL,
         imei VARCHAR(20) PRIMARY KEY UNIQUE NOT NULL,
         numero_serie VARCHAR(100),
@@ -268,7 +271,7 @@ def main():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
     
-    print("¡Tabla 'inventario_celulares' creada exitosamente en agrocisa_core.db!") 
+    print("¡Tabla 'inventario_celulares_2026' creada exitosamente en agrocisa_core.db!") 
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_cpu (
@@ -400,7 +403,7 @@ def main():
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
         FOREIGN KEY (numero) REFERENCES lineas_telefonicas(numero),
-        FOREIGN KEY (imei) REFERENCES inventario_celulares(imei)
+        FOREIGN KEY (imei) REFERENCES inventario_celulares_2026(imei)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
         

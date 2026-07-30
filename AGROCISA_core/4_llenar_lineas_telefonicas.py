@@ -83,10 +83,13 @@ df_lineas_telefonicas_codigo = df_lineas_telefonicas.merge(
     how='left'
 )
 
+df_lineas_telefonicas_codigo["id_estatus_linea"] = 1
+df_lineas_telefonicas_codigo["comentarios"] = ""
+
 columnas_lineas_telefonicas = [
     'numero',
-    'codigo',
     'mpp',
+    'comentarios',
     'plan_2024',
     'mensualidad_2024',
     'GB_2024',
@@ -95,6 +98,8 @@ columnas_lineas_telefonicas = [
     'GB_2026',
     'GB_promocion_2026',
     'diferencia_2024_2026',
+    'codigo',
+    'id_estatus_linea',
 ]
 df_lineas_telefonicas = df_lineas_telefonicas_codigo[columnas_lineas_telefonicas]
 df_lineas_telefonicas.rename(columns={
@@ -102,13 +107,11 @@ df_lineas_telefonicas.rename(columns={
     'mpp' : 'is_mpp'
     },inplace=True)
 
-df_lineas_telefonicas["id_estatus_linea"] = 1
-
 #Escribimos la hoja de empleados
 with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_lineas_telefonicas.to_excel(writer, sheet_name='Lineas Telefónicas', index=False)
     
-print(f"\"{len(df_lineas_telefonicas)}\" líneas telefónicas listas para importar")
+print(f"\"{len(df_lineas_telefonicas)}\" líneas telefónicas listas para inyectar")
 
 engine = get_engine()
 

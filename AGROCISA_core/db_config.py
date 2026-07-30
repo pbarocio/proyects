@@ -15,8 +15,9 @@ def get_connection():
             user=str(os.getenv("BDD_USER")),
             password=str(os.getenv("BDD_PASSWORD")),
             database=str(os.getenv("DATABASE")),
+            port=3306,
             charset='utf8mb4',
-            autocommit=str(os.getenv("AUTOCOMMIT")),
+            autocommit=False,
             #cursorclass=pymysql.cursors.DictCursor  # Opcional: resultados como diccionarios
         )
         print("✅ Conexión a MariaDB establecida")
@@ -32,6 +33,7 @@ def get_connection_nueva():
             host=str(os.getenv("HOST")),
             user=str(os.getenv("BDD_USER")),
             password=str(os.getenv("BDD_PASSWORD")),
+            port=3306,
             charset='utf8mb4',
             autocommit= False
             #cursorclass=pymysql.cursors.DictCursor  # Opcional: resultados como diccionarios

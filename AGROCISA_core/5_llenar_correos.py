@@ -85,10 +85,15 @@ df_correos_id = df_correo_tipo.merge(
     how='left'
 )
 
+df_correos_id['alias'] = ""
+df_correos_id['comentarios'] = ""
+
 #CAMBIAMOS EL ÓRDEN DE LAS COLUMNAS
 columnas_correo_id = [
     'direccion_correo',
     'password',
+    'alias',
+    'comentarios',
     'id_tipo_correo',
     'id_estatus_correo',
     'codigo_empleado',
