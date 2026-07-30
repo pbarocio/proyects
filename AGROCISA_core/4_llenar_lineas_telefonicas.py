@@ -2,7 +2,8 @@ import pandas
 from openpyxl import load_workbook
 from pathlib import Path
 import numpy as np
-import sqlite3
+from db_config import get_files_path, get_engine
+from sqlalchemy import text
 
 # Mostrar todas las filas
 pandas.set_option('display.max_rows', None)
@@ -26,6 +27,18 @@ def limpiar_entero (valor):
         
     return int(digitos)
 
+def limpiar_telefono(valor):
+    if pandas.isna(valor) or valor is None: # 1. Manejo de nulos o celdas vacías
+        return None
+    texto = str(valor).split(".")[0].strip() # 2. Si es float/int, quitamos el punto decimal convirtiendo primero a string
+
+    digitos = "".join(filter(str.isdigit, texto))  # 3. Nos quedamos solo con los caracteres numéricos
+
+    if not digitos or len(digitos) != 10: # 4. Validamos que no esté vacío Y que sean exactamente 10 dígitos
+        return None  # O puedes regresar None para marcarlo como inválido/vacío
+
+    return digitos
+
 def limpiar_moneda(value):
     if value is None or str(value).strip() in ('N/A', ''):
         return None
@@ -40,16 +53,17 @@ def limpiar_gb(value):
 
 #Aquí comienza el código
 #DEFINIMOS LA RUTA DE LOS ARCHIVOS
-dir_archivos = Path.home() / "git" / "proyects" / "AGROCISA_core"
-#AGREGAMOS LA RUTA COMPLETA DEL ARCHIVO DE EXCEL
-directorio = dir_archivos / "Directorio 2026-07-21 martes.xlsx"
-directorio_nuevo = dir_archivos / "Estructura BDD.xlsx"
+files = get_files_path()
+directorio = files['directorio']
+directorio_nuevo = files['directorio_nuevo']
 #LEEMOS la HOJA 'Asignaciones qué contiene los datos' SÓLO CON LAS COLUMNAS FUNCIONALES
 df_datos_lineas = pandas.read_excel(directorio, sheet_name='Historico_Lineas_2026').copy()
 df_datos_empleado = pandas.read_excel(directorio_nuevo, sheet_name='Asignaciones').copy()
 
+df_datos_empleado['Celular'] = df_datos_empleado['Celular'].apply(limpiar_telefono)
+
 df_lineas_telefonicas = pandas.DataFrame({
-    'numero' : df_datos_lineas["número"].apply(limpiar_entero),
+    'numero' : df_datos_lineas["número"].apply(limpiar_telefono),
     'mpp' : np.where(df_datos_lineas["MPP"].notna(),1, 0),
     'plan_2024' : df_datos_lineas["Plan 2024"],
     'mensualidad_2024' : df_datos_lineas["Mensualidad 2024"].apply(limpiar_moneda),
@@ -96,16 +110,18 @@ with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_
     
 print(f"\"{len(df_lineas_telefonicas)}\" líneas telefónicas listas para importar")
 
-conexion = sqlite3.connect("agrocisa_core.db")
+engine = get_engine()
 
-df_lineas_telefonicas.to_sql(
-    name='lineas_telefonicas',
-    con=conexion,
-    if_exists='append',
-    index=False
-)
+with engine.begin() as conn:
+    conn.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
 
-conexion.commit()
-conexion.close()
+    df_lineas_telefonicas.to_sql(
+        name='lineas_telefonicas',
+        con=conn,
+        if_exists='append',
+        index=False
+    )
 
-print(f"Se importó correctamente la tabla lineas_telefonicas")
+    conn.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
+
+print(f"Se inyectó correctamente la tabla 'lineas_telefonicas'")

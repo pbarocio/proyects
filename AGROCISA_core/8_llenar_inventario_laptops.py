@@ -3,7 +3,7 @@ from openpyxl import load_workbook
 from pathlib import Path
 import numpy as np
 import re
-import sqlite3
+from db_config import get_files_path, get_engine
 
 # Mostrar todas las filas
 pandas.set_option('display.max_rows', None)
@@ -15,28 +15,41 @@ pandas.set_option('display.max_columns', None)
 pandas.set_option('display.max_colwidth', None)
 
 def normalizar_fecha_iso(val):
-    # Si es nulo o 'NULL', regresamos None para que SQL guarde un NULL real
-    if pandas.isna(val) or val is None or str(val).strip() in ['', 'NULL', 'None', 'nan', 'NaT']:
+    # 1. Si es nulo o vacío, devolvemos None para que pase a MariaDB como NULL
+    if (
+        pandas.isna(val)
+        or val is None
+        or str(val).strip() in ['', 'NULL', 'None', 'nan', 'NaT']
+    ):
         return None
-    
+
     val_str = str(val).lower().strip()
-    
-    # 1. Corregir dedazos comunes de los meses
-    correcciones = {
-        'fecbrero': 'febrero',
-        'setiembre': 'septiembre'
-    }
+
+    # 2. Corregir errores comunes de captura en los meses
+    correcciones = {'fecbrero': 'febrero', 'setiembre': 'septiembre'}
     for error, correcto in correcciones.items():
         val_str = val_str.replace(error, correcto)
-        
+
     meses_map = {
-        'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
-        'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
-        'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+        'enero': '01',
+        'febrero': '02',
+        'marzo': '03',
+        'abril': '04',
+        'mayo': '05',
+        'junio': '06',
+        'julio': '07',
+        'agosto': '08',
+        'septiembre': '09',
+        'octubre': '10',
+        'noviembre': '11',
+        'diciembre': '12',
     }
-    
-    # 2. Si viene en español largo: "jueves 18 de diciembre de 2025" -> 2025-12-18
-    match_texto = re.search(r'(\d{1,2})\s+de\s+([a-zA-Z]+)\s+de\s+(\d{4})', val_str)
+
+    # 3. Fecha en texto largo (ej: "viernes 05 de junio de 2024" o "martes 23 de julio 2024")
+    # El (?:de\s+)? hace que el segundo "de" sea opcional
+    match_texto = re.search(
+        r'(\d{1,2})\s+de\s+([a-zA-Z]+)\s+(?:de\s+)?(\d{4})', val_str
+    )
     if match_texto:
         dia = match_texto.group(1).zfill(2)
         mes_nombre = match_texto.group(2)
@@ -44,7 +57,7 @@ def normalizar_fecha_iso(val):
         if mes_nombre in meses_map:
             return f"{anio}-{meses_map[mes_nombre]}-{dia}"
 
-    # 3. Si viene como "28/01/2025" -> 2025-01-28
+    # 4. Formato con diagonales (ej: "28/01/2025" -> "2025-01-28")
     match_slash = re.search(r'(\d{1,2})/(\d{1,2})/(\d{4})', val_str)
     if match_slash:
         dia = match_slash.group(1).zfill(2)
@@ -52,23 +65,23 @@ def normalizar_fecha_iso(val):
         anio = match_slash.group(3)
         return f"{anio}-{mes}-{dia}"
 
-    # 4. Si viene como ISO con hora: "2026-05-04 00:00:00" -> 2026-05-04
+    # 5. Formato ISO / Datetime estándar de Pandas (ej: "2025-07-05 00:00:00" -> "2025-07-05")
     try:
         dt = pandas.to_datetime(val_str, errors='coerce')
         if not pandas.isna(dt):
             return dt.strftime('%Y-%m-%d')
     except Exception:
         pass
-        
+
     return None
 
 
 #Aquí comienza el código
 #DEFINIMOS LA RUTA DE LOS ARCHIVOS
-dir_archivos = Path.home() / "git" / "proyects" / "AGROCISA_core"
-#AGREGAMOS LA RUTA COMPLETA DEL ARCHIVO DE EXCEL
-directorio = dir_archivos / "Directorio 2026-07-21 martes.xlsx"
-directorio_nuevo = dir_archivos / "Estructura BDD.xlsx"
+#DEFINIMOS LA RUTA DE LOS ARCHIVOS
+files = get_files_path()
+directorio = files['directorio']
+directorio_nuevo = files['directorio_nuevo']
 #LEEMOS la HOJA qué contiene los datos' SÓLO CON LAS COLUMNAS FUNCIONALES
 df_datos_laptops = pandas.read_excel(
     directorio,
@@ -142,16 +155,12 @@ df_datos_laptops = df_datos_laptops[columnas_laptops]
 df_datos_laptops["codigo_empleado"] = df_datos_laptops["hostname"].map(map_codigo)
 
 #LEEMOS LAS TABLAS BÁSICAS
-db_name = "agrocisa_core.db"
-conexion = sqlite3.connect(db_name)
+engine = get_engine()
 
-df_hdd_tipo = pandas.read_sql_query("SELECT id_hdd_tipo, hdd_opcion FROM hdd_tipo", conexion)
-df_condicion = pandas.read_sql_query("SELECT id_condicion, condicion_opcion FROM condicion", conexion)
-df_renovacion = pandas.read_sql_query("SELECT id_renovacion, renovacion_opcion FROM renovacion", conexion)
-df_cargadores = pandas.read_sql_query("SELECT id_cargador, cargador_opcion FROM cargadores", conexion)
-
-conexion.commit()
-conexion.close()
+df_hdd_tipo = pandas.read_sql_query("SELECT id_hdd_tipo, hdd_opcion FROM hdd_tipo", con=engine)
+df_condicion = pandas.read_sql_query("SELECT id_condicion, condicion_opcion FROM condicion", con=engine)
+df_renovacion = pandas.read_sql_query("SELECT id_renovacion, renovacion_opcion FROM renovacion", con=engine)
+df_cargadores = pandas.read_sql_query("SELECT id_cargador, cargador_opcion FROM cargadores", con=engine)
 
 df_inventario_laptops = df_datos_laptops.merge(
     df_hdd_tipo,
@@ -175,8 +184,9 @@ df_inventario_laptops = df_datos_laptops.merge(
     how='left'
 )
 
-df_inventario_laptops["id_estatus_laptop"] = 1
+df_inventario_laptops["id_estatus_laptops"] = 1
 df_inventario_laptops['fecha_entrega'] = df_inventario_laptops['fecha_entrega'].apply(normalizar_fecha_iso)
+df_inventario_laptops['fecha_entrega'] = df_inventario_laptops['fecha_entrega'].where(df_inventario_laptops['fecha_entrega'].notna(), None)
 
 columnas_laptops = [
     'hostname',
@@ -201,9 +211,8 @@ columnas_laptops = [
     'id_renovacion',
     'fecha_entrega',
     'codigo_empleado',
-    'id_estatus_laptop',
+    'id_estatus_laptops',
 ]
-
 df_inventario_laptops = df_inventario_laptops[columnas_laptops]
 
 #Escribimos la hoja de empleados
@@ -212,16 +221,11 @@ with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_
 
 print(f"\"{len(df_datos_laptops)}\" registros listos para inyectar")
 
-conexion = sqlite3.connect("agrocisa_core.db")
-
 df_inventario_laptops.to_sql(
     name='inventario_laptops',
-    con=conexion,
+    con=engine,
     if_exists='append',
     index=False
 )
-
-conexion.commit()
-conexion.close()
 
 print(f"Se importó correctamente la tabla ")

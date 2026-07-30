@@ -3,7 +3,8 @@ from openpyxl import load_workbook
 from pathlib import Path
 import unicodedata
 import re
-import sqlite3
+from db_config import get_files_path, get_engine
+from sqlalchemy import text
 
 # Mostrar todas las filas
 pandas.set_option('display.max_rows', None)
@@ -37,11 +38,22 @@ def quitar_caracteres_no_validos(texto):
     
     return texto_limpio
 
-#Aquí comienza el código
-#DEFINIMOS LA RUTA DE LOS ARCHIVOS
-dir_archivos = Path.home() / "git" / "proyects" / "AGROCISA_core"
-#AGREGAMOS LA RUTA COMPLETA DEL ARCHIVO DE EXCEL
-directorio = dir_archivos / "Directorio 2026-07-21 martes.xlsx"
+def limpiar_telefono(valor):
+    if pandas.isna(valor) or valor is None: # 1. Manejo de nulos o celdas vacías
+        return None
+    texto = str(valor).split(".")[0].strip() # 2. Si es float/int, quitamos el punto decimal convirtiendo primero a string
+
+    digitos = "".join(filter(str.isdigit, texto))  # 3. Nos quedamos solo con los caracteres numéricos
+
+    if not digitos or len(digitos) != 10: # 4. Validamos que no esté vacío Y que sean exactamente 10 dígitos
+        return None  # O puedes regresar None para marcarlo como inválido/vacío
+
+    return digitos
+
+files = get_files_path()
+directorio = files['directorio']
+directorio_nuevo = files['directorio_nuevo']
+
 #LEEMOS la HOJA 'EMPLEADOS' SÓLO CON LAS COLUMNAS FUNCIONALES
 df_empleados = pandas.read_excel(
     directorio, 
@@ -84,16 +96,11 @@ df_asignaciones_completa = df_asignaciones.merge(
 )
 
 #LEEMOS LA TABLA DE SUCURSALES
-db_name = "agrocisa_core.db"
-conexion = sqlite3.connect(db_name)
-cursor = conexion.cursor()
+engine = get_engine()
 
-df_sucursales = pandas.read_sql_query("SELECT id_sucursal, nombre_sucursal FROM sucursales", conexion)
-df_departamentos = pandas.read_sql_query("SELECT id_departamento, nombre_departamento FROM departamentos", conexion)
-df_puestos = pandas.read_sql_query("SELECT id_puesto, nombre_puesto FROM puestos", conexion)
-
-conexion.commit()
-conexion.close()
+df_sucursales = pandas.read_sql_query("SELECT id_sucursal, nombre_sucursal FROM sucursales", con=engine)
+df_departamentos = pandas.read_sql_query("SELECT id_departamento, nombre_departamento FROM departamentos", con=engine)
+df_puestos = pandas.read_sql_query("SELECT id_puesto, nombre_puesto FROM puestos", con=engine)
 
 #HACER MERGE CON SUCURSALES
 df_asignaciones_sucursales = df_asignaciones_completa.merge(
@@ -147,14 +154,18 @@ columnas_asignaciones_puestos = [
     'KNOX'
 ]
 df_asignaciones_puestos = df_asignaciones_puestos[columnas_asignaciones_puestos]
+
+#CONVERTIMOS LA COLUMNA CELULAR A STRING PARA USARLA CON VARCHAR
+df_asignaciones_puestos["Celular"] = df_asignaciones_puestos["Celular"].apply(limpiar_telefono)
 #CREAMOS EL NUEVO ARCHIVO PARA EL MAPEO DE TABLAS
-archivo_asignaciones_puestos = dir_archivos / "Estructura BDD.xlsx"
-df_asignaciones_puestos.to_excel(archivo_asignaciones_puestos, sheet_name="Asignaciones", index=False)
+df_asignaciones_puestos.to_excel(directorio_nuevo, sheet_name="Asignaciones", index=False)
 
 #ELIMINAMOS LOS EMPLEADOS SIN CÓDIGO Y CREAMOS EL DATAFRAME DE EMPLEADOS
 df_empleados = df_asignaciones_puestos[
     df_asignaciones_puestos["codigo"].notna() & (df_asignaciones_puestos["codigo"] != '')
 ]
+#CONVERTIMOS LOS TELÉFONOS A STRING PARA EL VARCHAR
+df_empleados["Celular"] = df_empleados["Celular"].apply(limpiar_telefono)
 #DEFINIMOS LA COLUMNA PARA LA TABLA EMPLEADOS
 columnas_empleados = [
     'codigo',
@@ -176,23 +187,29 @@ df_empleados.rename(columns={
 
 df_empleados["id_estatus_empleado"] = 1
 
+df_empleados["nombre"] = df_empleados["nombre"].str.title()
+df_empleados["apellido_paterno"] = df_empleados["apellido_paterno"].str.title()
+df_empleados["apellido_materno"] = df_empleados["apellido_materno"].str.title()
+
 #Escribimos la hoja de empleados
-with pandas.ExcelWriter(archivo_asignaciones_puestos, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_empleados.to_excel(writer, sheet_name='Empleados', index=False)
     
 print(f"\"{len(df_empleados)}\" empleados listos para exportar...")
 
-conexion = sqlite3.connect("agrocisa_core.db")
-#cursor = conexion.cursor()
+#USAMOS ENGINE PARA INYECTAR LA BDD CON ALCHEMY
+engine = get_engine()
 
-df_empleados.to_sql(
-    name='empleados',
-    con=conexion,
-    if_exists='append',
-    index=False
-)
+with engine.begin() as conn:
+    conn.execute(text("SET FOREIGN_KEY_CHECKS = 0;"))
 
-conexion.commit()
-conexion.close()
+    df_empleados.to_sql(
+        name='empleados',
+        con=conn,
+        if_exists='append',
+        index=False
+    )
 
-print(f"Se importó correctamente la tabla empleados")
+    conn.execute(text("SET FOREIGN_KEY_CHECKS = 1;"))
+
+print(f"Se inyectó correctamente la tabla 'empleados'")

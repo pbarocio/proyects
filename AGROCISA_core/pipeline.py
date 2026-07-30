@@ -20,7 +20,7 @@ def run_script(script_name):
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("🏁 INICIANDO PIPELINE DE AGROCISA")
+    print("🏁 INICIANDO PIPELINE DE AGROCISA_CORE")
     print("=" * 50)
     
     # Lista de tus scripts en el ORDEN exacto
@@ -28,9 +28,20 @@ if __name__ == "__main__":
         "0_crear_bdd.py",      # Crea la BDD si no existe
         "1_crear_core.py",     # Crea las tablas
         "2_llenar_catalogos.py", 
-        # "3_importar_empleados.py",
-        # # ... y así hasta el 15
-        # "15_generar_responsivas.py"
+        "3_llenar_asignaciones_empleados.py",
+        "4_llenar_lineas_telefonicas.py",
+        "5_llenar_correos.py",
+        "6_llenar_inventario_celulares.py",
+        "7_llenar_inventario_cpu.py",
+        "8_llenar_inventario_laptops.py",
+        "9_llenar_inventario_monitores.py",
+        "10_llenar_inventario_tablets.py",
+        "11_llenar_responsivas.py",
+        "12_generar_responsivas_celular.py",
+        "13_generar_responsivas_cpu.py",
+        "14_generar_responsivas_laptops.py",
+        "15_generar_responsivas_monitores.py",
+        "16_generar_responsivas_tablets.py",
     ]
     
     start_time = time.time()

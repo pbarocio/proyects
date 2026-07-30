@@ -1,5 +1,5 @@
 import pandas as pd
-import sqlite3
+from db_config import get_files_path, get_engine
 from pathlib import Path
 from docxtpl import DocxTemplate
 from num2words import num2words
@@ -93,19 +93,18 @@ def generar_responsivas_word(df_responsivas, plantilla_path, output_dir):
 # --- EJECUCIÓN ---
 if __name__ == "__main__":
     # Configuración de rutas
-    dir_archivos = Path.home() / "git" / "proyects" / "AGROCISA_core" / "Archivos_Responsivas"
-    db_path = Path.home() / "git" / "proyects" / "AGROCISA_core" / "agrocisa_core.db"
-    plantilla_path = dir_archivos / "plantilla_laptops.docx"
-    output_dir = dir_archivos / "Responsivas Laptops"
+    paths = get_files_path()
+    plantilla_path = paths['dir_plantillas'] / "plantilla_laptops.docx"
+    output_dir = paths['dir_responsivas'] / "Responsivas Laptops"
     output_dir.mkdir(exist_ok=True)
     
     # Conectar y traer los datos
-    conexion = sqlite3.connect(db_path)
+    engine = get_engine()
     
     query = """
     SELECT
 	rlap.fecha_entrega,
-	emp.nombre || ' ' || emp.apellido_paterno || ' ' || emp.apellido_materno AS empleado,
+	CONCAT_WS(' ',emp.nombre, emp.apellido_paterno, emp.apellido_materno) AS empleado,
 	suc.nombre_sucursal AS sucursal,
 	dep.nombre_departamento AS departamento,
 	pue.nombre_puesto AS puesto,
@@ -139,8 +138,7 @@ if __name__ == "__main__":
 	ORDER BY rlap.fecha_entrega ASC, emp.nombre
     """
     
-    df_responsivas = pd.read_sql_query(query, conexion)
-    conexion.close()
+    df_responsivas = pd.read_sql_query(query, con=engine)
     
     print(f"✅ {len(df_responsivas)} responsivas de laptops cargadas desde la BDD.")
     

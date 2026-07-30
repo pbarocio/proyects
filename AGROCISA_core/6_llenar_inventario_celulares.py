@@ -3,7 +3,7 @@ from openpyxl import load_workbook
 from pathlib import Path
 import numpy as np
 import re
-import sqlite3
+from db_config import get_files_path, get_engine
 
 # Mostrar todas las filas
 pandas.set_option('display.max_rows', None)
@@ -62,18 +62,24 @@ def normalizar_fecha_iso(val):
         
     return None
 
-def limpiar_entero (valor):
-    if pandas.isna(valor):
+def limpiar_telefono(valor):
+    if pandas.isna(valor) or valor is None: # 1. Manejo de nulos o celdas vacías
         return None
-    if isinstance(valor, float):
-        valor = int(valor)
-    # Sacamos los números limpios
-    digitos = ''.join(filter(str.isdigit, str(valor)))
-    # Si la celda estaba vacía o con un espacio blanco, 'digitos' vale ''
-    if not digitos:
+    texto = str(valor).split(".")[0].strip() # 2. Si es float/int, quitamos el punto decimal convirtiendo primero a string
+    digitos = "".join(filter(str.isdigit, texto))  # 3. Nos quedamos solo con los caracteres numéricos
+
+    if not digitos or len(digitos) != 10: # 4. Validamos que no esté vacío Y que sean exactamente 10 dígitos
+        return None  # O puedes regresar None para marcarlo como inválido/vacío
+
+    return digitos
+
+def limpiar_entero(valor):
+    if pandas.isna(valor) or valor is None: # 1. Manejo de nulos o celdas vacías
         return None
-        
-    return int(digitos)
+    texto = str(valor).split(".")[0].strip() # 2. Si es float/int, quitamos el punto decimal convirtiendo primero a string
+    digitos = "".join(filter(str.isdigit, texto))  # 3. Nos quedamos solo con los caracteres numéricos
+
+    return digitos
 
 def limpiar_moneda(value):
     if value is None or str(value).strip() in ('N/A', ''):
@@ -91,10 +97,9 @@ def limpiar_gb(value):
 
 #Aquí comienza el código
 #DEFINIMOS LA RUTA DE LOS ARCHIVOS
-dir_archivos = Path.home() / "git" / "proyects" / "AGROCISA_core"
-#AGREGAMOS LA RUTA COMPLETA DEL ARCHIVO DE EXCEL
-directorio = dir_archivos / "Directorio 2026-07-21 martes.xlsx"
-directorio_nuevo = dir_archivos / "Estructura BDD.xlsx"
+files = get_files_path()
+directorio = files['directorio']
+directorio_nuevo = files['directorio_nuevo']
 #LEEMOS la HOJA qué contiene los datos' SÓLO CON LAS COLUMNAS FUNCIONALES
 df_datos_celulares = pandas.read_excel(
     directorio, 
@@ -109,15 +114,15 @@ df_datos_asignaciones = pandas.read_excel(
     ).copy()
 
 #LIMPIAMOS LOS NÚMEROS DE TELÉFONO DE ASIGNACIONES
-df_datos_asignaciones["Celular"] = df_datos_asignaciones["Celular"].apply(limpiar_entero)
+df_datos_asignaciones["Celular"] = df_datos_asignaciones["Celular"].apply(limpiar_telefono)
 
 
 # Eliminar nulos y duplicados (solo para el mapeo)
 df_asignaciones_unicos = df_datos_asignaciones.dropna(subset=['Celular']).drop_duplicates(subset=['Celular'], keep='first')
 
 df_celulares = pandas.DataFrame({
-    'numero_renovacion' : df_datos_celulares["Renovación"].apply(limpiar_entero),
-    'numero' : df_datos_celulares["Número"].apply(limpiar_entero),
+    'numero_renovacion' : df_datos_celulares["Renovación"].apply(limpiar_telefono),
+    'numero' : df_datos_celulares["Número"].apply(limpiar_telefono),
     'imei' : df_datos_celulares["IMEI"].apply(limpiar_entero),
     'numero_serie': df_datos_celulares["Número de Serie"],
     'mac_address' : df_datos_celulares["MacAddress"],
@@ -149,16 +154,12 @@ with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_
     sin_codigo.to_excel(writer, sheet_name='Celulares sin codigo', index=False)
 
 #LEEMOS LA TABLA DE estatus_correos_electronicos
-db_name = "agrocisa_core.db"
-conexion = sqlite3.connect(db_name)
+engine = get_engine()
 
-df_equipos_2026 = pandas.read_sql_query("SELECT id_equipo, marca_modelo, precio FROM equipos_2026", conexion)
-df_condicion = pandas.read_sql_query("SELECT id_condicion, condicion_opcion FROM condicion", conexion)
-df_cargador = pandas.read_sql_query("SELECT id_cargador, cargador_opcion FROM cargadores", conexion)
-df_caja = pandas.read_sql_query("SELECT id_caja, caja_opcion FROM caja", conexion)
-
-conexion.commit()
-conexion.close()
+df_equipos_2026 = pandas.read_sql_query("SELECT id_equipo, marca_modelo, precio FROM equipos_2026", con=engine)
+df_condicion = pandas.read_sql_query("SELECT id_condicion, condicion_opcion FROM condicion", con=engine)
+df_cargador = pandas.read_sql_query("SELECT id_cargador, cargador_opcion FROM cargadores", con=engine)
+df_caja = pandas.read_sql_query("SELECT id_caja, caja_opcion FROM caja", con=engine)
 
 df_inventaio_celulares = df_celulares.merge(
     df_equipos_2026,
@@ -222,16 +223,11 @@ columnas_inventario_celulares = [
 ]
 df_inventaio_celulares = df_inventaio_celulares[columnas_inventario_celulares]
 
-conexion = sqlite3.connect("agrocisa_core.db")
-
 df_inventaio_celulares.to_sql(
     name='inventario_celulares',
-    con=conexion,
+    con=engine,
     if_exists='append',
     index=False
 )
 
-conexion.commit()
-conexion.close()
-
-print(f"Se importó correctamente la tabla inventario_celulares")
+print(f"Se inyectó correctamente la tabla 'inventario_celulares'")

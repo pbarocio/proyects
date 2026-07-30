@@ -1,6 +1,5 @@
 # drop_db.py
 from db_config import get_connection_nueva
-from db_config import environment_info
 import pymysql
 
 def drop_database():

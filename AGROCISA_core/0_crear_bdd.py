@@ -1,6 +1,6 @@
 # 0_crear_bdd.py
 from db_config import get_connection_nueva
-from db_config import environment_info
+from db_config import get_files_path
 import pymysql
 
 def crear_base_datos():
@@ -11,7 +11,7 @@ def crear_base_datos():
         return
     
     cursor = conexion.cursor()
-    environment = environment_info()
+    environment = get_files_path()
     
     try:
         # Crear la base de datos

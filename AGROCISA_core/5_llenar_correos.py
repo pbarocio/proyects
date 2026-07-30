@@ -1,7 +1,7 @@
 import pandas
 from openpyxl import load_workbook
 from pathlib import Path
-import sqlite3
+from db_config import get_files_path, get_engine
 
 # Mostrar todas las filas
 pandas.set_option('display.max_rows', None)
@@ -27,9 +27,9 @@ def limpiar_entero (valor):
 
 #Aquí comienza el código
 #DEFINIMOS LA RUTA DE LOS ARCHIVOS
-dir_archivos = Path.home() / "git" / "proyects" / "AGROCISA_core"
-#AGREGAMOS LA RUTA COMPLETA DEL ARCHIVO DE EXCEL
-directorio_nuevo = dir_archivos / "Estructura BDD.xlsx"
+files = get_files_path()
+directorio = files['directorio']
+directorio_nuevo = files['directorio_nuevo']
 #LEEMOS la HOJA 'Asignaciones qué contiene los datos' SÓLO CON LAS COLUMNAS FUNCIONALES
 df_datos_correos = pandas.read_excel(
                                     directorio_nuevo,
@@ -64,15 +64,11 @@ df_correos['estatus_correo_df'] = 'ACTIVO'
 df_correos.loc[df_correos['codigo_empleado'].isna(), 'estatus_correo_df'] = 'INACTIVO'
 
 #LEEMOS LA TABLA DE estatus_correos_electronicos
-db_name = "agrocisa_core.db"
-conexion = sqlite3.connect(db_name)
-cursor = conexion.cursor()
+engine = get_engine()
 
-df_tipo_correo = pandas.read_sql_query("SELECT id_tipo_correo, tipo_correo FROM tipos_correos_electronicos", conexion)
-df_estatus_correo = pandas.read_sql_query("SELECT id_estatus_correo, estatus_correo FROM estatus_correos_electronicos", conexion)
+df_tipo_correo = pandas.read_sql_query("SELECT id_tipo_correo, tipo_correo FROM tipos_correos_electronicos", con=engine)
+df_estatus_correo = pandas.read_sql_query("SELECT id_estatus_correo, estatus_correo FROM estatus_correos_electronicos", con=engine)
 
-conexion.commit()
-conexion.close()
 #HACEMOS MERGE PARA TRAER EL TIPO DE CORREO
 df_correo_tipo = df_correos.merge(
     df_tipo_correo,
@@ -104,16 +100,11 @@ print(f"\"{len(df_correos_id)}\" direcciones de correo listas para exportar...")
 with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
     df_correos_id.to_excel(writer, sheet_name='Correos', index=False)
     
-conexion = sqlite3.connect("agrocisa_core.db")
-
 df_correos_id.to_sql(
     name='correos_electronicos',
-    con=conexion,
+    con=engine,
     if_exists='append',
     index=False
 )
 
-conexion.commit()
-conexion.close()
-
-print(f"Se importó correctamente la tabla correos_electronicos")
+print(f"Se inyectó correctamente la tabla 'correos_electronicos'")

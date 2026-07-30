@@ -147,47 +147,45 @@ def main():
     print("¡Tabla 'estatus_linea_telefonica' creada exitosamente en agrocisa_core.db!")
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS correos_electronicos (
-            id_correo INT PRIMARY KEY AUTO_INCREMENT,
-            direccion_correo VARCHAR(100) NOT NULL,
-            password VARCHAR(100),
-            id_tipo_correo INT,
-            id_estatus_correo INT,
-            codigo_empleado INT,
-            FOREIGN KEY (id_tipo_correo) REFERENCES tipos_correos_electronicos(id_tipo_correo),
-            FOREIGN KEY (id_estatus_correo) REFERENCES estatus_correos_electronicos(id_estatus_correo),
-            FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
+        CREATE TABLE IF NOT EXISTS estatus_cpu (
+            id_estatus_cpu INT PRIMARY KEY AUTO_INCREMENT,
+            estatus_cpu VARCHAR(100)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
-        
-    print("¡Tabla 'correos_electrónicos' creada exitosamente en agrocisa_core.db!")
+            
+    print("¡Tabla 'estatus_cpu' creada exitosamente en agrocisa_core.db!") 
 
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS empleados (
-            codigo INT PRIMARY KEY,
-            apellido_paterno VARCHAR(100),
-            apellido_materno VARCHAR(100),
-            nombre VARCHAR(100),
-            id_sucursal INT,
-            id_departamento INT,
-            id_puesto INT,
-            numero_telefono INT,
-            zona VARCHAR(100),
-            id_estatus_empleado INT,
-            FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal),
-            FOREIGN KEY (id_departamento) REFERENCES departamentos(id_departamento),
-            FOREIGN KEY (id_puesto) REFERENCES puestos(id_puesto),
-            FOREIGN KEY (numero_telefono) REFERENCES lineas_telcel(numero),
-            FOREIGN KEY (id_estatus_empleado) REFERENCES estatus_empleados(id_estatus_empleado)
+        CREATE TABLE IF NOT EXISTS estatus_laptops (
+            id_estatus_laptops INT PRIMARY KEY AUTO_INCREMENT,
+            estatus_laptop VARCHAR(100)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        """)
+    """)
+            
+    print("¡Tabla 'estatus_laptops' creada exitosamente en agrocisa_core.db!")
     
-    print("¡Tabla 'empleados' creada exitosamente en agrocisa_core.db!")
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS estatus_monitores (
+            id_estatus_monitor INT PRIMARY KEY AUTO_INCREMENT,
+            estatus_monitor VARCHAR(100)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+            
+    print("¡Tabla 'estatus_monitores' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS estatus_tablets (
+            id_estatus_tablet INT PRIMARY KEY AUTO_INCREMENT,
+            estatus_tablet VARCHAR(100)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+            
+    print("¡Tabla 'estatus_tablets' creada exitosamente en agrocisa_core.db!")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS lineas_telefonicas (
-            numero INT PRIMARY KEY,
-            codigo_empleado INT NULL,
+            numero VARCHAR(20) PRIMARY KEY,
+            codigo_empleado VARCHAR(20) NULL,
             is_mpp INT NULL,
             plan_2024 VARCHAR(100),
             mensualidad_2024 DECIMAL(10,2),
@@ -204,22 +202,60 @@ def main():
     """)
         
     print("¡Tabla 'lineas_telefonicas' creada exitosamente en agrocisa_core.db!")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS empleados (
+            codigo VARCHAR(20) PRIMARY KEY,
+            apellido_paterno VARCHAR(100),
+            apellido_materno VARCHAR(100),
+            nombre VARCHAR(100),
+            id_sucursal INT,
+            id_departamento INT,
+            id_puesto INT,
+            numero_telefono VARCHAR(20),
+            zona VARCHAR(100),
+            id_estatus_empleado INT,
+            FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal),
+            FOREIGN KEY (id_departamento) REFERENCES departamentos(id_departamento),
+            FOREIGN KEY (id_puesto) REFERENCES puestos(id_puesto),
+            FOREIGN KEY (numero_telefono) REFERENCES lineas_telcel(numero),
+            FOREIGN KEY (id_estatus_empleado) REFERENCES estatus_empleados(id_estatus_empleado)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+        """)
+    
+    print("¡Tabla 'empleados' creada exitosamente en agrocisa_core.db!")
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS correos_electronicos (
+            id_correo INT PRIMARY KEY AUTO_INCREMENT,
+            direccion_correo VARCHAR(200) NOT NULL,
+            password VARCHAR(100),
+            id_tipo_correo INT,
+            id_estatus_correo INT,
+            codigo_empleado VARCHAR(20),
+            FOREIGN KEY (id_tipo_correo) REFERENCES tipos_correos_electronicos(id_tipo_correo),
+            FOREIGN KEY (id_estatus_correo) REFERENCES estatus_correos_electronicos(id_estatus_correo),
+            FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+    
+    print("¡Tabla 'correos_electrónicos' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_celulares (
-        numero_renovacion INT NULL,
-        imei INT PRIMARY KEY UNIQUE NOT NULL,
+        numero_renovacion VARCHAR(20) NULL,
+        imei VARCHAR(20) PRIMARY KEY UNIQUE NOT NULL,
         numero_serie VARCHAR(100),
         mac_address VARCHAR(100),
         comentarios TEXT NULL,
         observaciones TEXT NULL,
-        numero INT NULL,
+        numero VARCHAR(20) NULL,
         id_equipo INT NOT NULL,
         id_condicion INT NULL,
         id_cargador INT NULL,
         id_caja INT NULL,
-        fecha_entrega DATETIME,
-        codigo_empleado INT NULL,
+        fecha_entrega DATE,
+        codigo_empleado VARCHAR(20) NULL,
         id_estatus_celular INT,
         
         FOREIGN KEY (numero) REFERENCES lineas_telefonicas (numero),
@@ -232,16 +268,7 @@ def main():
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
     
-    print("¡Tabla 'inventario_celulares' creada exitosamente en agrocisa_core.db!")
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS estatus_cpu (
-            id_estatus_cpu INT PRIMARY KEY AUTO_INCREMENT,
-            estatus_cpu VARCHAR(100)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """)
-            
-    print("¡Tabla 'estatus_cpu' creada exitosamente en agrocisa_core.db!")  
+    print("¡Tabla 'inventario_celulares' creada exitosamente en agrocisa_core.db!") 
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_cpu (
@@ -259,11 +286,11 @@ def main():
         precio INT,
         comentarios TEXT,
         observaciones TEXT,
-        fecha_mantenimiento DATETIME,
+        fecha_mantenimiento DATE,
         id_condicion INT,
         id_renovacion INT,
-        fecha_entrega DATETIME,
-        codigo_empleado INT,
+        fecha_entrega DATE,
+        codigo_empleado VARCHAR(20),
         id_estatus_cpu INT,
         
         FOREIGN KEY (id_hdd_tipo) REFERENCES hdd_tipo (id_hdd_tipo),
@@ -275,15 +302,6 @@ def main():
     """)
             
     print("¡Tabla 'inventario_cpu' creada exitosamente en agrocisa_core.db!")
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS estatus_laptops (
-            id_estatus_laptops INT PRIMARY KEY AUTO_INCREMENT,
-            estatus_laptop VARCHAR(100)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """)
-            
-    print("¡Tabla 'estatus_laptops' creada exitosamente en agrocisa_core.db!")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_laptops (
@@ -307,29 +325,20 @@ def main():
         id_cargador INT,
         id_condicion INT,
         id_renovacion INT,
-        fecha_entrega DATETIME,
-        codigo_empleado INT,
-        id_estatus_laptop INT,
+        fecha_entrega DATE,
+        codigo_empleado VARCHAR(20),
+        id_estatus_laptops INT,
         
         FOREIGN KEY (id_hdd_tipo) REFERENCES hdd_tipo (id_hdd_tipo),
         FOREIGN KEY (id_cargador) REFERENCES cargadores (id_cargador),
         FOREIGN KEY (id_condicion) REFERENCES condicion (id_condicion),
         FOREIGN KEY (id_renovacion) REFERENCES renovacion(id_renovacion),
         FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo),
-        FOREIGN KEY (id_estatus_laptop) REFERENCES estatus_laptops(id_estatus_laptops)
+        FOREIGN KEY (id_estatus_laptops) REFERENCES estatus_laptops(id_estatus_laptops)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
             
     print("¡Tabla 'inventario_laptops' creada exitosamente en agrocisa_core.db!")
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS estatus_monitores (
-            id_estatus_monitor INT PRIMARY KEY AUTO_INCREMENT,
-            estatus_monitor VARCHAR(100)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """)
-            
-    print("¡Tabla 'estatus_monitores' creada exitosamente en agrocisa_core.db!")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_monitores (
@@ -343,8 +352,8 @@ def main():
         observaciones TEXT,
         id_condicion INT,
         id_renovacion INT,
-        fecha_entrega DATETIME,
-        codigo_empleado INT,
+        fecha_entrega DATE,
+        codigo_empleado VARCHAR(20),
         id_estatus_monitor INT,
         
         FOREIGN KEY (id_condicion) REFERENCES condicion (id_condicion),
@@ -355,21 +364,12 @@ def main():
     """)
             
     print("¡Tabla 'inventario_monitores' creada exitosamente en agrocisa_core.db!")
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS estatus_tablets (
-            id_estatus_tablet INT PRIMARY KEY AUTO_INCREMENT,
-            estatus_tablet VARCHAR(100)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-    """)
-            
-    print("¡Tabla 'estatus_tablets' creada exitosamente en agrocisa_core.db!")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_tablets (
         marca VARCHAR(100),
         modelo VARCHAR(100),
-        imei INT,
+        imei VARCHAR(20),
         numero_serie VARCHAR(100) PRIMARY KEY NOT NULL,
         mac_address VARCHAR(100),
         precio INT,
@@ -377,8 +377,8 @@ def main():
         observaciones TEXT,
         id_condicion INT,
         id_cargador INT,
-        fecha_entrega DATETIME,
-        codigo_empleado INT,
+        fecha_entrega DATE,
+        codigo_empleado VARCHAR(20),
         id_estatus_tablet INT,
         
         FOREIGN KEY (id_condicion) REFERENCES condicion (id_condicion),
@@ -393,10 +393,10 @@ def main():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS responsivas_celulares (
         id_responsiva_celular INT PRIMARY KEY AUTO_INCREMENT,
-        fecha_entrega DATETIME NOT NULL,
-        codigo_empleado INT,
-        numero INT,
-        imei INT,
+        fecha_entrega DATE NOT NULL,
+        codigo_empleado VARCHAR(20),
+        numero VARCHAR(20),
+        imei VARCHAR(20),
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
         FOREIGN KEY (numero) REFERENCES lineas_telefonicas(numero),
@@ -409,8 +409,8 @@ def main():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS responsivas_cpu (
         id_responsiva_cpu INT PRIMARY KEY AUTO_INCREMENT,
-        fecha_entrega DATETIME NOT NULL,
-        codigo_empleado INT,
+        fecha_entrega DATE NOT NULL,
+        codigo_empleado VARCHAR(20),
         hostname VARCHAR(100),
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
@@ -423,8 +423,8 @@ def main():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS responsivas_laptops (
         id_responsiva_cpu INT PRIMARY KEY AUTO_INCREMENT,
-        fecha_entrega DATETIME NOT NULL,
-        codigo_empleado INT,
+        fecha_entrega DATE NOT NULL,
+        codigo_empleado VARCHAR(20),
         numero_serie VARCHAR(100),
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
@@ -437,8 +437,8 @@ def main():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS responsivas_monitores (
         id_responsiva_cpu INT PRIMARY KEY AUTO_INCREMENT,
-        fecha_entrega DATETIME NOT NULL,
-        codigo_empleado INT,
+        fecha_entrega DATE NOT NULL,
+        codigo_empleado VARCHAR(20),
         numero_serie VARCHAR(100),
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
@@ -451,8 +451,8 @@ def main():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS responsivas_tablets (
         id_responsiva_cpu INT PRIMARY KEY AUTO_INCREMENT,
-        fecha_entrega DATETIME NOT NULL,
-        codigo_empleado INT,
+        fecha_entrega DATE NOT NULL,
+        codigo_empleado VARCHAR(20),
         numero_serie VARCHAR(100),
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
