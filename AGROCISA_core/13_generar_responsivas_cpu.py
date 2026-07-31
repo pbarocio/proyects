@@ -84,7 +84,7 @@ def generar_responsivas_word(df_responsivas, plantilla_path, output_dir):
         
         # Renderizar y guardar
         plantilla.render(contexto)
-        nombre_archivo = f"Responsiva CPU {row['empleado'].title()}-{row['hostname']}.docx"
+        nombre_archivo = f"Responsiva CPU {row['empleado']} ({row['hostname']}).docx"
         output_path = Path(output_dir) / nombre_archivo
         plantilla.save(output_path)
         print(f"✅ {nombre_archivo} generado.")
@@ -125,7 +125,7 @@ if __name__ == "__main__":
 	LEFT JOIN sucursales suc ON emp.id_sucursal = suc.id_sucursal
 	LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
 	LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
-	LEFT JOIN inventario_cpu icp ON rcp.hostname = icp.hostname
+	LEFT JOIN inventario_cpu icp ON rcp.id_cpu = icp.id_cpu
 	LEFT JOIN hdd_tipo thd ON icp.id_hdd_tipo = thd.id_hdd_tipo
 	LEFT JOIN condicion con ON icp.id_condicion = con.id_condicion
 	LEFT JOIN (

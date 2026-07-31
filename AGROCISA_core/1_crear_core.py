@@ -208,6 +208,7 @@ def main():
         CREATE TABLE IF NOT EXISTS lineas_telefonicas (
             numero VARCHAR(20) PRIMARY KEY,
             is_mpp INT NULL,
+            knox INT NULL,
             comentarios TEXT,
             plan_2024 VARCHAR(100),
             mensualidad_2024 DECIMAL(10,2),
@@ -275,7 +276,8 @@ def main():
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS inventario_cpu (
-        hostname VARCHAR(100) PRIMARY KEY NOT NULL,
+        id_cpu INT AUTO_INCREMENT PRIMARY KEY,
+        hostname VARCHAR(100),
         procesador VARCHAR(100),
         datos_memoria_ram VARCHAR(100),
         memoria_ram VARCHAR(100),
@@ -412,12 +414,13 @@ def main():
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS responsivas_cpu (
         id_responsiva_cpu INT PRIMARY KEY AUTO_INCREMENT,
+        id_cpu INT,
         fecha_entrega DATE NOT NULL,
         codigo_empleado VARCHAR(20),
         hostname VARCHAR(100),
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
-        FOREIGN KEY (hostname) REFERENCES inventario_cpu(hostname)
+        FOREIGN KEY (id_cpu) REFERENCES inventario_cpu(id_cpu)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
         

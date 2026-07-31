@@ -85,10 +85,12 @@ df_lineas_telefonicas_codigo = df_lineas_telefonicas.merge(
 
 df_lineas_telefonicas_codigo["id_estatus_linea"] = 1
 df_lineas_telefonicas_codigo["comentarios"] = ""
+df_lineas_telefonicas_codigo["knox"] = 0
 
 columnas_lineas_telefonicas = [
     'numero',
     'mpp',
+    'knox',
     'comentarios',
     'plan_2024',
     'mensualidad_2024',

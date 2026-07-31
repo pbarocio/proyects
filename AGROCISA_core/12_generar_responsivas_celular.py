@@ -86,7 +86,7 @@ def generar_responsivas_word(df_responsivas, plantilla_path, output_dir):
         
         # Renderizar y guardar
         plantilla.render(contexto)
-        nombre_archivo = f"Responsiva_celular_{row['empleado'].title()}_{row['imei']}.docx"
+        nombre_archivo = f"Responsiva celular {row['empleado']} ({row['equipo']} {row['imei']}).docx"
         output_path = Path(output_dir) / nombre_archivo
         plantilla.save(output_path)
         print(f"✅ {nombre_archivo} generado.")

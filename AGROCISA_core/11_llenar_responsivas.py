@@ -95,7 +95,7 @@ df_responsivas_celualres.to_sql(
 print(f"Se inyectó correctamente la tabla 'responsivas_celulares'")
 
 query_cpu = """
-    SELECT fecha_entrega, codigo_empleado, hostname FROM inventario_cpu
+    SELECT id_cpu, fecha_entrega, codigo_empleado FROM inventario_cpu
     WHERE codigo_empleado IS NOT NULL AND fecha_entrega IS NOT NULL
 """
 
