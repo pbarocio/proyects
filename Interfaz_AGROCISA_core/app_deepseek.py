@@ -5,7 +5,7 @@ import pandas as pd
 # --- CONFIGURACIÓN DE LA PÁGINA ---
 st.set_page_config(
     page_title="AGROCISA Dashboard",
-    page_icon="🌾",
+    page_icon="🚜",
     layout="wide"
 )
 
@@ -14,7 +14,7 @@ st.set_page_config(
 def conectar_bdd():
     usuario = "agrocisa_admin"
     password = "4GR0C154#SIS"
-    host = "localhost"
+    host = "servidor.agrocisa.corporativo"
     database = "agrocisa_core"
     
     url = f"mysql+pymysql://{usuario}:{password}@{host}/{database}"
@@ -33,7 +33,7 @@ def contar_empleados_activos():
 
 @st.cache_data(ttl=300)
 def contar_celulares_asignados():
-    query = "SELECT COUNT(*) FROM inventario_celulares_2026 WHERE codigo_empleado IS NOT NULL"
+    query = "SELECT COUNT(*) FROM inventario_celulares WHERE codigo_empleado IS NOT NULL"
     with engine.connect() as conn:
         resultado = conn.execute(text(query)).scalar()
     return resultado
@@ -68,7 +68,7 @@ def contar_tablets_asignados():
 
 @st.cache_data(ttl=300)
 def contar_celulares_disponibles():
-    query = "SELECT COUNT(*) FROM inventario_celulares_2026 WHERE codigo_empleado IS NULL"
+    query = "SELECT COUNT(*) FROM inventario_celulares WHERE codigo_empleado IS NULL"
     with engine.connect() as conn:
         resultado = conn.execute(text(query)).scalar()
     return resultado
@@ -104,7 +104,7 @@ def contar_tablets_disponibles():
 # --- BARRA LATERAL ---
 with st.sidebar:
     st.image("https://via.placeholder.com/150x50?text=AGROCISA", use_container_width=True)
-    st.title("🌾 AGROCISA")
+    st.title("🚜 AGROCISA")
     
     menu = st.radio(
         "Navegación",
