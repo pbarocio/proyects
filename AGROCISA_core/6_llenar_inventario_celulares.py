@@ -156,13 +156,13 @@ with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_
 #LEEMOS LA TABLA DE estatus_correos_electronicos
 engine = get_engine()
 
-df_equipos_2026 = pandas.read_sql_query("SELECT id_equipo, marca_modelo, precio FROM equipos_2026", con=engine)
+df_modelos_celulares = pandas.read_sql_query("SELECT id_modelo, marca_modelo, precio FROM modelos_celulares", con=engine)
 df_condicion = pandas.read_sql_query("SELECT id_condicion, condicion_opcion FROM condicion", con=engine)
 df_cargador = pandas.read_sql_query("SELECT id_cargador, cargador_opcion FROM cargadores", con=engine)
 df_caja = pandas.read_sql_query("SELECT id_caja, caja_opcion FROM caja", con=engine)
 
 df_inventaio_celulares = df_celulares.merge(
-    df_equipos_2026,
+    df_modelos_celulares,
     left_on='marca_modelo_df',
     right_on='marca_modelo',
     how='left'
@@ -189,7 +189,7 @@ columnas_inventario_celulares = [
     'comentarios',
     'observaciones',
     'numero',
-    'id_equipo',
+    'id_modelo',
     'id_condicion',
     'id_cargador',
     'id_caja',
@@ -213,7 +213,7 @@ columnas_inventario_celulares = [
     'comentarios',
     'observaciones',
     'numero',
-    'id_equipo',
+    'id_modelo',
     'id_condicion',
     'id_cargador',
     'id_caja',
@@ -224,7 +224,7 @@ columnas_inventario_celulares = [
 df_inventaio_celulares = df_inventaio_celulares[columnas_inventario_celulares]
 
 df_inventaio_celulares.to_sql(
-    name='inventario_celulares_2026',
+    name='inventario_celulares',
     con=engine,
     if_exists='append',
     index=False

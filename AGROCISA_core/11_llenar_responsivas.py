@@ -78,7 +78,7 @@ def normalizar_fecha_iso(val):
 engine = get_engine()
 
 query_celulares = """
-    SELECT fecha_entrega, codigo_empleado, numero, imei FROM inventario_celulares_2026
+    SELECT fecha_entrega, codigo_empleado, numero, imei FROM inventario_celulares
     WHERE codigo_empleado IS NOT NULL AND fecha_entrega IS NOT NULL
 """
 

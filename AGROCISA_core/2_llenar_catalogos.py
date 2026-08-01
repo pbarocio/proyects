@@ -217,24 +217,25 @@ def fill_mobile_phones_2026(cursor):
     # Metemos los datos limpios de tu imagen
     # Estructura de la tupla: (Tipo, Mensualidad, GB)
     mobile_phones_list = [
-        ("Iphone 17 256", 19999),
-        ("Iphone 17 Pro 256", 28499),
-        ("Iphone 17 PRO MAX", 30999),
-        ("Samsung S26+ 512GB", 33499),
-        ("Samsung S25FE 128GB", 15499),
-        ("Samsung Galaxy A36", 7499),
-        ("Samsung Galaxy A56", 10999),
-        ("Samsung S26 Ultra 512GB", 29999),
-        ("Honor X5 Plus", 800)
+        ("Honor X5 Plus", '800', '2024'),
+        ("Honor X8B", '1000', '2024'),
+        ("Iphone 17 256", '19999', '2026'),
+        ("Iphone 17 Pro 256", '28499', '2026'),
+        ("Iphone 17 PRO MAX", '30999', '2026'),
+        ("Samsung S26+ 512GB", '33499', '2026'),
+        ("Samsung S25FE 128GB", '15499', '2026'),
+        ("Samsung Galaxy A36", '7499', '2026'),
+        ("Samsung Galaxy A56", '10999', '2026'),
+        ("Samsung S26 Ultra 512GB", '29999', '2026'),
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
-    INSERT IGNORE INTO equipos_2026 (marca_modelo, precio) 
-    VALUES (%s, %s);
+    INSERT IGNORE INTO modelos_celulares (marca_modelo, precio, ano_renovacion) 
+    VALUES (%s, %s, %s);
     """, mobile_phones_list)
 
-    print(f"¡Se han cargado {cursor.rowcount} 'equipos_2026' nuevos al catálogo!")
+    print(f"¡Se han cargado {cursor.rowcount} 'modelos_celulares' nuevos al catálogo!")
 
 def fill_mail_type(cursor):
     mail_type = [
