@@ -11,16 +11,10 @@ with st.sidebar:
     st.write("Menú de navegación")
     menu = st.radio(
         "Navegación",
-        ["Inicio", "Empleados", "Inventario"]
-    )
-    
-    st.button(
-        "Panocha",
-    )
-    
-    st.selectbox(
-        "Pucha",
-        ["Pito", "Chichis", "Qlo"]
+        ["Empleado", 
+         "Asignaciones", 
+         "Inventario",
+         ""]
     )
 
 if menu == "Inicio":
