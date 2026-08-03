@@ -14,6 +14,20 @@ pandas.set_option('display.max_columns', None)
 # Mostrar texto completo (sin truncar)
 pandas.set_option('display.max_colwidth', None)
 
+def limpiar_codigo (valor):
+    if pandas.isna(valor) or valor is None:
+        return None
+    
+    texto = str(valor).split('.')[0].strip()
+    
+    # Sacamos los números limpios
+    digitos = ''.join(filter(str.isdigit, str(valor)))
+    # Si la celda estaba vacía o con un espacio blanco, 'digitos' vale ''
+    if not digitos:
+        return None
+        
+    return str(digitos)
+
 def normalizar_fecha_iso(val):
     # Si es nulo o 'NULL', regresamos None para que SQL guarde un NULL real
     if pandas.isna(val) or val is None or str(val).strip() in ['', 'NULL', 'None', 'nan', 'NaT']:
@@ -110,8 +124,11 @@ df_datos_celulares = pandas.read_excel(
 df_datos_asignaciones = pandas.read_excel(
     directorio_nuevo, 
     sheet_name='Asignaciones',
-    usecols=["Celular", "codigo"]
+    usecols=["Celular", "codigo"],
+    dtype={"codigo": str},
     ).copy()
+
+df_datos_asignaciones["codigo"] = df_datos_asignaciones["codigo"].apply(limpiar_codigo)
 
 #LIMPIAMOS LOS NÚMEROS DE TELÉFONO DE ASIGNACIONES
 df_datos_asignaciones["Celular"] = df_datos_asignaciones["Celular"].apply(limpiar_telefono)

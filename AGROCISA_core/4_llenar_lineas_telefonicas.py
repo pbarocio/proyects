@@ -14,6 +14,21 @@ pandas.set_option('display.max_columns', None)
 # Mostrar texto completo (sin truncar)
 pandas.set_option('display.max_colwidth', None)
 
+def limpiar_codigo (valor):
+    if pandas.isna(valor) or valor is None:
+        return None
+    
+    texto = str(valor).split('.')[0].strip()
+    
+    # Sacamos los números limpios
+    digitos = ''.join(filter(str.isdigit, str(valor)))
+    # Si la celda estaba vacía o con un espacio blanco, 'digitos' vale ''
+    if not digitos:
+        return None
+        
+    return str(digitos)
+
+
 def limpiar_entero (valor):
     if pandas.isna(valor):
         return None
@@ -58,7 +73,12 @@ directorio = files['directorio']
 directorio_nuevo = files['directorio_nuevo']
 #LEEMOS la HOJA 'Asignaciones qué contiene los datos' SÓLO CON LAS COLUMNAS FUNCIONALES
 df_datos_lineas = pandas.read_excel(directorio, sheet_name='Historico_Lineas_2026').copy()
-df_datos_empleado = pandas.read_excel(directorio_nuevo, sheet_name='Asignaciones').copy()
+df_datos_empleado = pandas.read_excel(directorio_nuevo, 
+                                      sheet_name='Asignaciones',
+                                      dtype={"codigo": str},
+                                      ).copy()
+
+df_datos_empleado['codigo'] = df_datos_empleado["codigo"].apply(limpiar_codigo)
 
 df_datos_empleado['Celular'] = df_datos_empleado['Celular'].apply(limpiar_telefono)
 

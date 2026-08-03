@@ -12,18 +12,19 @@ pandas.set_option('display.max_columns', None)
 # Mostrar texto completo (sin truncar)
 pandas.set_option('display.max_colwidth', None)
 
-def limpiar_entero (valor):
-    if pandas.isna(valor):
+def limpiar_codigo (valor):
+    if pandas.isna(valor) or valor is None:
         return None
-    if isinstance(valor, float):
-        valor = int(valor)
+    
+    texto = str(valor).split('.')[0].strip()
+    
     # Sacamos los números limpios
     digitos = ''.join(filter(str.isdigit, str(valor)))
     # Si la celda estaba vacía o con un espacio blanco, 'digitos' vale ''
     if not digitos:
         return None
         
-    return int(digitos)
+    return str(digitos)
 
 #Aquí comienza el código
 #DEFINIMOS LA RUTA DE LOS ARCHIVOS
@@ -34,8 +35,12 @@ directorio_nuevo = files['directorio_nuevo']
 df_datos_correos = pandas.read_excel(
                                     directorio_nuevo,
                                     sheet_name='Asignaciones',
-                                    usecols=["codigo","Correo Gmail","Contraseña Gmail","Correo Institucional", "Contraseña Institucional"]
+                                    usecols=["codigo","Correo Gmail","Contraseña Gmail","Correo Institucional", "Contraseña Institucional"],
+                                    dtype={"codigo": str},
                                     ).copy()
+
+df_datos_correos["codigo"] = df_datos_correos["codigo"].apply(limpiar_codigo)
+
 #CREAMOS EL DATAFRAME CON LOS DATOS DE CORREOS_CORPORATIVOS
 df_tabla_correos_Corporativos = pandas.DataFrame({
     'codigo_empleado': df_datos_correos["codigo"],

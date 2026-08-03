@@ -193,7 +193,6 @@ def main():
             id_departamento INT,
             id_puesto INT,
             numero_telefono VARCHAR(20),
-            zona VARCHAR(100),
             id_estatus_empleado INT,
             FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal),
             FOREIGN KEY (id_departamento) REFERENCES departamentos(id_departamento),

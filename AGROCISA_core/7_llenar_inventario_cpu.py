@@ -14,6 +14,20 @@ pandas.set_option('display.max_columns', None)
 # Mostrar texto completo (sin truncar)
 pandas.set_option('display.max_colwidth', None)
 
+def limpiar_codigo (valor):
+    if pandas.isna(valor) or valor is None:
+        return None
+    
+    texto = str(valor).split('.')[0].strip()
+    
+    # Sacamos los números limpios
+    digitos = ''.join(filter(str.isdigit, str(valor)))
+    # Si la celda estaba vacía o con un espacio blanco, 'digitos' vale ''
+    if not digitos:
+        return None
+        
+    return str(digitos)
+
 def normalizar_fecha_iso(val):
     # 1. Si es nulo o vacío, devolvemos None para que pase a MariaDB como NULL
     if (
@@ -109,8 +123,11 @@ df_datos_cpu.rename(columns={
 df_datos_empleados = pandas.read_excel(
     directorio_nuevo, 
     sheet_name='Asignaciones',
-    usecols=["CPU", "codigo"]
+    usecols=["CPU", "codigo"],
+    dtype={"codigo": str},
     ).copy()
+
+df_datos_empleados["codigo"] = df_datos_empleados["codigo"].apply(limpiar_codigo)
 
 # Eliminar nulos y duplicados (solo para el mapeo)
 df_datos_empleados = df_datos_empleados.dropna(subset=['codigo']).dropna(subset=['CPU'])

@@ -3,7 +3,7 @@ from openpyxl import load_workbook
 from pathlib import Path
 import unicodedata
 import re
-from db_config import get_files_path, get_engine
+from db_config import get_files_path, get_engine, obtener_empleados_vps
 from sqlalchemy import text
 
 # Mostrar todas las filas
@@ -50,20 +50,28 @@ def limpiar_telefono(valor):
 
     return digitos
 
+def limpiar_codigo (valor):
+    if pandas.isna(valor) or valor is None:
+        return None
+    
+    texto = str(valor).split('.')[0].strip()
+    
+    # Sacamos los números limpios
+    digitos = ''.join(filter(str.isdigit, str(valor)))
+    # Si la celda estaba vacía o con un espacio blanco, 'digitos' vale ''
+    if not digitos:
+        return None
+        
+    return str(digitos)
+
 files = get_files_path()
 directorio = files['directorio']
 directorio_nuevo = files['directorio_nuevo']
 
-#LEEMOS la HOJA 'EMPLEADOS' SÓLO CON LAS COLUMNAS FUNCIONALES
-df_empleados = pandas.read_excel(
-    directorio, 
-    sheet_name='Empleados',
-    usecols=["codigo","nombre","apellido_paterno","apellido_materno","estatus"]
-    ).copy()
-#FILTRAMOS SOLAMENTE LOS EMPLEADOS ACTIVOS
-df_empleados = df_empleados[df_empleados["estatus"] == "ACTIVO"]
-#ELMINAMOS LA COLUMNA ESTATUS, YA NO SE NECESITA
-df_empleados.drop('estatus', axis=1, inplace=True)
+#LEEMOS LA TABLA DE EMPLEADOS DEL VPS
+df_empleados = obtener_empleados_vps()
+df_empleados['codigo'] = df_empleados["codigo"].apply(limpiar_codigo)
+
 #CREAMOS LA COLUMNA (SERIE) NOMBRES NORMALIZADOS
 df_empleados["nombre_normalizado"] = (
     df_empleados["nombre"].astype(str).fillna("").apply(normalizar_cadena) + " " +
@@ -175,7 +183,6 @@ columnas_empleados = [
     'id_departamento',
     'id_puesto',
     'Celular',
-    'Zona',
 ]
 df_empleados = df_empleados[columnas_empleados]
 
