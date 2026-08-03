@@ -15,7 +15,7 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Ignorar carpetas __pycache__ en cualquier subcarpeta
+# Ignorar carpetas __.agents__ en cualquier subcarpeta
 **/__.agents__/
 __.agents__/
 *.agents
