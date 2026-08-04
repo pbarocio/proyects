@@ -1,5 +1,5 @@
 import pandas as pd
-from db_config import get_files_path
+from db_config import get_files_path, get_engine
 
 # Mostrar todas las filas
 pd.set_option('display.max_rows', None)
@@ -56,6 +56,7 @@ pd.set_option('display.max_colwidth', None)
         
 path = get_files_path()
 red_agrocisa = path["red_agrocisa"]
+directorio_nuevo = path['directorio_nuevo']
 
 df_dispositivos_red = pd.read_excel(
     red_agrocisa,
@@ -79,3 +80,21 @@ df_dispositivos_red.rename(columns={
   'WPA2-PSK' : 'password_wpa',
   'Ubicación' : 'ubicacion_fisica',
 }, inplace=True)
+
+engine = get_engine()
+
+query = """"""
+
+df_sucursales = pd.read_sql_query("SELECT id_sucursal, nombre_sucursal FROM sucursales", con=engine)
+
+df_dispositivos_red = df_dispositivos_red.merge(
+  df_sucursales,
+  left_on='sucursal',
+  right_on='nombre_sucursal',
+  how='left',
+)
+
+#PATH_NETWORK_DEVICES = "/mnt/sistemas.agrocisa/Sistemas/Responsivas/Red Agrocisa.xlsx"
+
+with pd.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+    df_dispositivos_red.to_excel(writer, sheet_name='Dispostivos de Red', index=False)

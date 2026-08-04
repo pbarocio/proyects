@@ -11,6 +11,7 @@ def fill_branches(cursor):
         ("Poncitlán",),
         ("Zona Altos",),
         ("Corporativo",),
+        ("Expo Irapuato",),
     ]
 
     cursor.executemany("""
