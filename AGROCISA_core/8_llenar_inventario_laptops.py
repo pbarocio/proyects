@@ -136,12 +136,12 @@ df_datos_laptops.rename(columns={
     'Tipo HD' : 'tipo_hdd',
     'Renovar' : 'renovar',
     'MAC LAN' : 'mac_address_lan',
-    'MAC WIFI' : 'mac_address_wifi',
+    'MAC WIFI' : 'mac_address_wlan',
 }, inplace=True)
 
-df_datos_laptops["datos_memoria_ram"] = ""
-df_datos_laptops["datos_almacenamiento"] = ""
-df_datos_laptops["observaciones"] = ""
+df_datos_laptops["datos_memoria_ram"] = None
+df_datos_laptops["datos_almacenamiento"] = None
+df_datos_laptops["observaciones"] = None
 
 columnas_laptops = [
     'hostname',
@@ -157,7 +157,7 @@ columnas_laptops = [
     'motherboard',
     'sistema_operativo',
     'mac_address_lan',
-    'mac_address_wifi',
+    'mac_address_wlan',
     'cargador',
     'condicion',
     'precio',

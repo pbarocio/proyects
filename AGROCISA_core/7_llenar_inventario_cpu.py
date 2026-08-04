@@ -137,11 +137,19 @@ df_datos_cpu["id_estatus_cpu"] = 1
 #MAPEAMOS EL CÓDIGO DE EMPLEADO PARA AÑADIRLO A LOS DATOS DEL CPU
 map_codigo = dict(zip(df_datos_empleados['CPU'], df_datos_empleados['codigo']))
 df_datos_cpu["codigo_empleado"] = df_datos_cpu['hostname'].map(map_codigo)
-df_datos_cpu["datos_memoria_ram"] = ""
-df_datos_cpu["datos_almacenamiento"] = ""
+
+#INICIALIZAMOS LOS NUEVOS CAMPOS PARA LA BDD
+df_datos_cpu["marca"] = None
+df_datos_cpu["modelo"] = None
+df_datos_cpu["numero_serie"] = None
+df_datos_cpu["datos_memoria_ram"] = None
+df_datos_cpu["datos_almacenamiento"] = None
 
 columnas_cpu = [
     'hostname',
+    'marca',
+    'modelo',
+    'numero_serie',
     'procesador',
     'datos_memoria_ram',
     'memoria_ram',
@@ -197,6 +205,9 @@ df_inventario_cpu['fecha_mantenimiento'] = df_inventario_cpu['fecha_mantenimient
 
 columnas_cpu = [
     'hostname',
+    'marca',
+    'modelo',
+    'numero_serie',
     'procesador',
     'datos_memoria_ram',
     'memoria_ram',

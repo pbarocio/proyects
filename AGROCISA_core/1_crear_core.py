@@ -278,6 +278,9 @@ def main():
         CREATE TABLE IF NOT EXISTS inventario_cpu (
         id_cpu INT AUTO_INCREMENT PRIMARY KEY,
         hostname VARCHAR(100),
+        marca VARCHAR(100),
+        modelo VARCHAR(100),
+        numero_serie VARCHAR(100),
         procesador VARCHAR(100),
         datos_memoria_ram VARCHAR(100),
         memoria_ram VARCHAR(100),
@@ -287,7 +290,7 @@ def main():
         motherboard VARCHAR(100),
         sistema_operativo VARCHAR(100),
         mac_address_lan VARCHAR(100),
-        mac_address_wifi VARCHAR(100),
+        mac_address_wlan VARCHAR(100),
         precio INT,
         comentarios TEXT,
         observaciones TEXT,
@@ -322,7 +325,7 @@ def main():
         motherboard VARCHAR(100),
         sistema_operativo VARCHAR(100),
         mac_address_lan VARCHAR(100),
-        mac_address_wifi VARCHAR(100),
+        mac_address_wlan VARCHAR(100),
         precio INT,
         comentarios TEXT,
         observaciones TEXT,
@@ -466,6 +469,50 @@ def main():
     """)
         
     print("¡Tabla 'responsivas_tablets' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dispositivos_red (
+        id_dispositivo INT PRIMARY KEY AUTO_INCREMENT,
+        id_sucursal INT NOT NULL,
+        tipo VARCHAR(100),
+        marca VARCHAR(100),
+        modelo VARCHAR(100),
+        numero_serie(100),
+        mac_address_lan VARCHAR(100),
+        mac_address_wlan VARCHAR(100),
+        ubicacion_fisica VARCHAR(100)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+            
+    print("¡Tabla 'dispositivos_red' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dispositivos_accesos (
+        id_dispositivo INT PRIMARY KEY AUTO_INCREMENT,
+        hostname VARCHAR(100),
+        usuario_admin_default VARCHAR(100),
+        password_admin_default VARCHAR(100),
+        password_nuevo VARCHAR(100),
+        puerto_admin VARCHAR(100),
+        
+        FOREIGN KEY id_dispositivo REFERENCES dispositivos_red (id_dispositivo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+            
+    print("¡Tabla 'dispositivos_accesos' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dispositivos_wifi (
+        id_dispositivo INT,
+        ssid VARCHAR(100),
+        modo_wpa VARCHAR(100),
+        password_wpa VARCHAR(100),
+        
+        FOREIGN KEY (id_dispositivo) REFERENCES dispositivos_red (id_dispositivo)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+            
+    print("¡Tabla 'dispositivos_wifi' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("SET FOREIGN_KEY_CHECKS = 1")
     

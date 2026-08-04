@@ -158,7 +158,6 @@ columnas_asignaciones_puestos = [
     'CPU',
     'Monitor',
     'Tablet',
-    'Zona',
 ]
 df_asignaciones_puestos = df_asignaciones_puestos[columnas_asignaciones_puestos]
 

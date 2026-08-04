@@ -161,7 +161,7 @@ df_inventario_monitores = df_datos_monitores.merge(
     how='left'
 )
 
-df_inventario_monitores['marca'] = ""
+df_inventario_monitores['marca'] = None
 df_inventario_monitores['codigo_empleado'] = df_datos_monitores["hostname"].map(map_codigo)
 df_inventario_monitores["id_estatus_monitor"] = 1
 

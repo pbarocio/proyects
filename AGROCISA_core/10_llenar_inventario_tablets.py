@@ -142,7 +142,7 @@ df_inventario_tablets = df_datos_tablets.merge(
 )
 
 df_inventario_tablets["id_condicion"] = int(2)
-df_inventario_tablets["comentarios"] =""
+df_inventario_tablets["comentarios"] = None
 df_inventario_tablets['codigo_empleado'] = df_datos_tablets["No."].map(map_codigo)
 df_inventario_tablets["id_estatus_tablet"] = int(1)
 

@@ -28,7 +28,6 @@ def limpiar_codigo (valor):
         
     return str(digitos)
 
-
 def limpiar_entero (valor):
     if pandas.isna(valor):
         return None
@@ -104,7 +103,7 @@ df_lineas_telefonicas_codigo = df_lineas_telefonicas.merge(
 )
 
 df_lineas_telefonicas_codigo["id_estatus_linea"] = 1
-df_lineas_telefonicas_codigo["comentarios"] = ""
+df_lineas_telefonicas_codigo["comentarios"] = None
 df_lineas_telefonicas_codigo["knox"] = 0
 
 columnas_lineas_telefonicas = [

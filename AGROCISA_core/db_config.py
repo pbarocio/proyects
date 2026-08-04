@@ -113,6 +113,7 @@ def get_files_path():
             'dir_responsivas' : Path(os.getenv("PATH_RESPONSIVAS")).expanduser(),
             'directorio' : str(Path(os.getenv("PATH_DIRECTORIO")).expanduser()),
             'directorio_nuevo' : str(Path(os.getenv("PATH_DIRECTORIO_NUEVO")).expanduser()),
+            'red_agrocisa' : str(Path(os.getenv("PATH_NETWORK_DEVICES")).expanduser()),
             'dir_plantillas' : Path(os.getenv("PATH_PLANTILLAS")).expanduser(),
             'db_user' : str(Path(os.getenv("BDD_USER")))
         }
