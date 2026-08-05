@@ -1,185 +1,90 @@
 import streamlit as st
-import pandas as pd
-from database import obtener_empleados_vps
-from consultas import (
-    obtener_sucursales,
-    obtener_departamentos,
-    obtener_puestos,
-    existe_empleado,
-    guardar_empleado,
+import os
+from dotenv import load_dotenv
+
+# Cargar variables de entorno
+load_dotenv()
+
+# Configuración inicial de la página
+st.set_page_config(
+    page_title="AGROCISA Core",
+    page_icon="⚙️",
+    layout="wide"
 )
 
-def registrar_empleado():
+# ---------------------------------------------------------
+# 1. ESTADO DE LA SESIÓN (LOGIN)
+# ---------------------------------------------------------
+if "autenticado" not in st.session_state:
+    st.session_state["autenticado"] = False
+if "usuario" not in st.session_state:
+    st.session_state["usuario"] = None
+
+def validar_login(user, password):
+    # Aquiles metes credenciales del .env o tu validación simple
+    USER_ADMIN = os.getenv("APP_USER", "admin")
+    PASS_ADMIN = os.getenv("APP_PASS", "admin123")
+    return user == USER_ADMIN and password == PASS_ADMIN
+
+# ---------------------------------------------------------
+# 2. PANTALLA DE BLOQUEO (SI NO HAY LOGIN)
+# ---------------------------------------------------------
+if not st.session_state["autenticado"]:
+    st.title("🔒 AGROCISA CORE | Acceso Sistema TI")
     
-    mapa_empleados = obtener_empleados_vps()
-    mapa_sucursales = obtener_sucursales()
-    mapa_departamentos = obtener_departamentos()
-    mapa_puestos = obtener_puestos()
-    
-    with st.form(key="Registrar_Empleado"):
-        
-        opcion_empleado_vps = st.selectbox(
-            "Buscar Empleado (Fuente: VPS agrocisa.com.mx)",
-            options=list(mapa_empleados.keys()),
-            index=None,
-            placeholder="Escribe el código o nombre para buscar ... "
-        )
-        
-        opcion_sucursales_nombre = st.selectbox(
-            "Sucursal",
-            options=list(mapa_sucursales.keys()),
-            index=None,
-            placeholder="Seleccione una Sucursal... "
-        )
-        
-        opcion_departamentos_nombre = st.selectbox(
-            "Departamento",
-            options=list(mapa_departamentos.keys()),
-            index=None,
-            placeholder="Seleccione un Departamento... "
-        )
-        
-        opcion_puestos_nombre = st.selectbox(
-            "Puesto",
-            options=list(mapa_puestos.keys()),
-            index=None,
-            placeholder="Seleccione un Puesto... "
-        )
-        
-        boton_empleado = st.form_submit_button("Enviar")
-        
-        if boton_empleado:
-            errores = False
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("form_login"):
+            st.subheader("Iniciar Sesión")
+            usuario_input = st.text_input("Usuario")
+            pass_input = st.text_input("Contraseña", type="password")
+            submit = st.form_submit_button("Entrar al Sistema")
             
-            if not opcion_empleado_vps:
-                st.error("Debes seleccionar un empleado de la lista...")
-                errores = True
-            
-            if not opcion_sucursales_nombre:
-                st.error("Debes seleccionar una sucursal de la lista...")
-                errores = True
-                
-            if not opcion_departamentos_nombre:
-                st.error("Debes seleccionar un departamento de la lista...")
-                errores = True
-                
-            if not errores:
-                datos_emp = mapa_empleados.get(opcion_empleado_vps)
-                
-                codigo = datos_emp["codigo"]
-                ap_paterno = datos_emp["apellido_paterno"]
-                ap_materno = datos_emp["apellido_materno"]
-                nombre = datos_emp["nombre"]
-                id_sucursal_seleccionada = mapa_sucursales.get(opcion_sucursales_nombre)
-                id_departamento_seleccionado = mapa_departamentos.get(opcion_departamentos_nombre)
-                id_puesto_seleccionado = mapa_puestos.get(opcion_puestos_nombre)
-                
-                if existe_empleado(codigo):
-                    st.warning(f"⚠️ {opcion_empleado_vps} ya está registrado (a)...")
+            if submit:
+                if validar_login(usuario_input, pass_input):
+                    st.session_state["autenticado"] = True
+                    st.session_state["usuario"] = usuario_input
+                    st.success("¡Bienvenido, bicho!")
+                    st.rerun()
                 else:
-                    exito = guardar_empleado(
-                        codigo, 
-                        ap_paterno, 
-                        ap_materno, 
-                        nombre, 
-                        id_sucursal_seleccionada, 
-                        id_departamento_seleccionado, 
-                        id_puesto_seleccionado, 
-                    )
-                    
-                    if exito:
-                        st.success("Empleado capturado con éxito!")
-                        st.write(
-                            "**Datos Guardados:**", 
-                            f"{codigo} - {nombre} {ap_paterno} {ap_materno} |" 
-                            f"Sucursal: {opcion_sucursales_nombre} |" 
-                            f"Departamento: {opcion_departamentos_nombre} |"
-                            f"Puesto: {opcion_puestos_nombre} |"
-                        )
-                    else:
-                        st.error("Ocurrió un error al guardar el empleado")
-            else:
-                st.error("Completa los campos pendientes... ")
-                
+                    st.error("⚠️ Credenciales no válidas. Acceso denegado.")
+    st.stop()  # Detiene todo el renderizado si no se ha autenticado
 
-# ==========================================
-# 1. SIDEBAR: Menú Principal
-# ==========================================
+# ---------------------------------------------------------
+# 3. INTERFAZ PRINCIPAL (SOLO SI YA SE AUTENTICÓ)
+# ---------------------------------------------------------
+st.sidebar.title("⚙️ AGROCISA_core")
+st.sidebar.write(f"👤 Operador: **{st.session_state['usuario']}**")
 
-with st.sidebar:
-    st.title("Menú Principal")
-    
-    opcion = st.radio(
-        "Prueba",
-        [
-            "Dashboard", 
-            "Empleados", 
-            "Generar Responsiva", 
-            "Inventario de dispositivos",
-        ]
-    )
-    
-    opcion_sub_menu = None
-    
-    if opcion == "Empleados":
-        opcion_sub_menu = st.selectbox(
-            "Elige una opcion", 
-            ["Registrar Empleado", "Modificar Empleado", "Baja Empleado"],
-            index=None,
-            placeholder="...",
-            help="Selecciona..."
-        )
-        
-    if opcion == "Generar Responsiva":
-        opcion_sub_menu = st.selectbox(
-            "Elige una opción",
-            [""],
-            index=None,
-            placeholder="...",
-            help="Selecciona una opción del menú"
-    )
-    
-    if opcion == "Inventario de dispositivos":
-        opcion_sub_menu = st.selectbox(
-            "Elige una opcion", 
-        [
-            "Registrar dispositivo", 
-            "Modificar dispositivo", 
-            "Baja dispositivo"
-        ],
-            index=None,
-            placeholder="...",
-            help="Selecciona una opción del menú"
-        )
-        
-# ==========================================
-# 2. CUERPO PRINCIPAL (PANTALLA)
-# ==========================================
+if st.sidebar.button("Cerrar Sesión"):
+    st.session_state["autenticado"] = False
+    st.session_state["usuario"] = None
+    st.rerun()
 
-st.title("AGROCISA CORE")
+st.sidebar.divider()
 
-if opcion == "Dashboard":
-    st.write("### Bienvenida al Dashboard")
-    # 3. Simulamos datos como los que te va a entregar MariaDB
-    datos_demo = pd.DataFrame(
-        {
-            "Empleado": ["Pablo", "Alex", "Lucy"],
-            "Equipo": ["Laptop Dell", "Monitor LG", "Teclado"],
-            "Estatus": ["Asignado", "En Stock", "Asignado"],
-        }
-    )
-    # Le aventamos el DataFrame a st.write directamente
-    st.write("### Inventario de prueba:")
-    st.write(datos_demo)
+# Menú lateral con TU nuevo orden lógico
+opcion_menu = st.sidebar.radio(
+    "Módulos del Sistema:",
+    [
+        "🔄 Sincronizador VPS",
+        "📄 Generar Responsivas",
+        "📱💻 Inventario de Equipos"
+    ]
+)
 
-elif opcion == "Empleados":
-    if opcion_sub_menu == "Registrar Empleado":
-        registrar_empleado()
-    else:
-        st.info("Sección Empleados")
+# ---------------------------------------------------------
+# 4. ENRUTADOR DE MÓDULOS
+# ---------------------------------------------------------
+if opcion_menu == "🔄 Sincronizador VPS":
+    st.header("🔄 Sincronización Automática con VPS")
+    st.info("Módulo para actualizar personal y procesar bajas/liberación de equipos automáticamente.")
+    # Aquí mandaremos llamar la función de sync
 
-elif opcion == "Generar Responsiva":
-    st.write("Módulo de responsivas en construcción...")
-    
-elif opcion == "Inventario de dispositivos":
-    st.write("Módulo de Inventario en construcción..")
+elif opcion_menu == "📄 Generar Responsivas":
+    st.header("📄 Generador de Responsivas (.docx)")
+    st.info("Módulo para asignar equipos disponibles a empleados activos y empaquetar el documento.")
+
+elif opcion_menu == "📱💻 Inventario de Equipos":
+    st.header("📱💻 Gestión de Inventario de TI")
+    st.info("Módulo para alta de hardware, consulta de estados y bitácora de observaciones.")
