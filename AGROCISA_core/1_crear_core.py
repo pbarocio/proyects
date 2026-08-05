@@ -477,7 +477,7 @@ def main():
         tipo VARCHAR(100),
         marca VARCHAR(100),
         modelo VARCHAR(100),
-        numero_serie(100),
+        numero_serie VARCHAR(100),
         mac_address_lan VARCHAR(100),
         mac_address_wlan VARCHAR(100),
         ubicacion_fisica VARCHAR(100)
@@ -488,14 +488,15 @@ def main():
     
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS dispositivos_accesos (
-        id_dispositivo INT PRIMARY KEY AUTO_INCREMENT,
+        id_dispositivo INT,
         hostname VARCHAR(100),
         usuario_admin_default VARCHAR(100),
         password_admin_default VARCHAR(100),
+        nuevo_usuario VARCHAR(100),
         password_nuevo VARCHAR(100),
         puerto_admin VARCHAR(100),
         
-        FOREIGN KEY id_dispositivo REFERENCES dispositivos_red (id_dispositivo)
+        FOREIGN KEY (id_dispositivo) REFERENCES dispositivos_red (id_dispositivo)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
             

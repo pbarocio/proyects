@@ -218,7 +218,7 @@ columnas_laptops = [
     'motherboard',
     'sistema_operativo',
     'mac_address_lan',
-    'mac_address_wifi',
+    'mac_address_wlan',
     'precio',
     'comentarios',
     'observaciones',

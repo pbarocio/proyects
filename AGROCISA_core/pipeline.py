@@ -49,6 +49,7 @@ if __name__ == "__main__":
         "14_generar_responsivas_laptops.py",
         "15_generar_responsivas_monitores.py",
         "16_generar_responsivas_tablets.py",
+        "17_llenar_dispositivos_red.py",
     ]
     
     start_time = time.time()

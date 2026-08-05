@@ -116,7 +116,7 @@ df_datos_cpu.rename(columns={
     'Renovar' : 'renovar',
     'Componentes' : 'observaciones',
     'MAC LAN' : 'mac_address_lan',
-    'MAC WIFI' : 'mac_address_wifi',
+    'MAC WIFI' : 'mac_address_wlan',
     'Fecha Mantenimiento' : 'fecha_mantenimiento'
 }, inplace=True)
 
@@ -159,7 +159,7 @@ columnas_cpu = [
     'motherboard',
     'sistema_operativo',
     'mac_address_lan',
-    'mac_address_wifi',
+    'mac_address_wlan',
     'condicion',
     'observaciones',
     'precio',
@@ -217,7 +217,7 @@ columnas_cpu = [
     'motherboard',
     'sistema_operativo',
     'mac_address_lan',
-    'mac_address_wifi',
+    'mac_address_wlan',
     'precio',
     'comentarios',
     'observaciones',
