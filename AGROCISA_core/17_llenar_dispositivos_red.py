@@ -108,34 +108,3 @@ connecction.commit()
 connecction.close()
 
 print(f"\"{len(df_dispositivos_red_completo)}\" dispositivos de red inyectados correctamente... ")
-
-
-
-
-# CREATE TABLE IF NOT EXISTS dispositivos_accesos (
-# id_dispositivo INT,
-# hostname VARCHAR(100),
-# usuario_admin_default VARCHAR(100),
-# password_admin_default VARCHAR(100),
-# nuevo_usuario VARCHAR(100),
-# password_nuevo VARCHAR(100),
-# puerto_admin VARCHAR(100),
-
-# FOREIGN KEY (id_dispositivo) REFERENCES dispositivos_red (id_dispositivo)
-# ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-        
-# print("¡Tabla 'dispositivos_accesos' creada exitosamente en agrocisa_core.db!")
-
-
-
-# cursor.execute("""
-#     CREATE TABLE IF NOT EXISTS dispositivos_wifi (
-#     id_dispositivo INT,
-#     ssid VARCHAR(100),
-#     modo_wpa VARCHAR(100),
-#     password_wpa VARCHAR(100),
-    
-#     FOREIGN KEY (id_dispositivo) REFERENCES dispositivos_red (id_dispositivo)
-#     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-# """)
-# print("¡Tabla 'dispositivos_wifi' creada exitosamente en agrocisa_core.db!")
