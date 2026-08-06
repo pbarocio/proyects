@@ -43,3 +43,29 @@ if not st.session_state["autenticado"]:
                 st.error("⚠️ Credenciales incorrectas...")
     st.stop()
 
+# ---------------------------------------------------------
+# INTERFAZ PRINCIPAL (Solo se ve si ya se autenticó)
+# ---------------------------------------------------------
+
+# Panel Lateral (Sidebar)
+st.sidebar.title("⚙️ AGROCISA_core")
+st.sidebar.write(f"👤 Operador: **{st.session_state['usuario']}**")
+
+# Botón para salir del sistema
+if st.sidebar.button("Cerrar Sesión"):
+    st.session_state["autenticado"] = False
+    st.session_state["usuario"] = None
+    st.rerun()  # ¡Con "n" de naranja, bicho! 😂
+
+st.sidebar.divider()
+
+# Menú de opciones (Módulos)
+opcion_menu = st.sidebar.radio(
+    "Módulos del Sistema:",
+    [
+        "🔄 Sincronizador VPS",
+        "📄 Generar Responsivas",
+        "📱💻 Inventario de Equipos"
+    ]
+)
+
