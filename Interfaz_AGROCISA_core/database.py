@@ -1,20 +1,22 @@
+import streamlit as st
 import mysql.connector
 import os
 from sshtunnel import SSHTunnelForwarder
 from pathlib import Path
 import paramiko
-from dotenv import load_dotenv #Cargar variables de entorno
+from dotenv import load_dotenv
 import pandas as pd
 
-env_path = Path(__file__).parent / ".env"
-load_dotenv(env_path) # === CARGAR .env ===
+# Cargar .env de la raíz
+env_path = Path(__file__).parent.parent / ".env" if (Path(__file__).parent.parent / ".env").exists() else Path(__file__).parent / ".env"
+load_dotenv(env_path)
 
-# --- PARCHE PARA PYTHON 3.14 / PARAMIKO Y SSHTUNNEL ---
+# Parche para Python 3.14 / Paramiko y SSHTunnel
 if not hasattr(paramiko, 'DSSKey'):
     paramiko.DSSKey = paramiko.PKey.PKey if hasattr(paramiko.PKey, 'PKey') else paramiko.RSAKey
-# ------------------------------------------------------
 
-def obtener_conexion():
+def obtener_conexion_local():
+    """Conexión a MariaDB Local."""
     try:
         conexion = mysql.connector.connect(
             host=str(os.getenv("LOCAL_HOST")),
@@ -22,73 +24,86 @@ def obtener_conexion():
             password=str(os.getenv("LOCAL_DB_PASSWORD")),
             database=str(os.getenv("LOCAL_DATABASE")),
         )
-        
         return conexion
     except Exception as e:
-        print(f"Error al conectar a MariaDB: {e}")
+        st.error(f"⚠️ Error al conectar a MariaDB Local: {e}")
         return None
 
-def obtener_empleados_vps():
+def obtener_empleados_vps_df():
     """
-    Abre un túnel SSH seguro al VPS de GoDaddy, lee la tabla de empleados
-    de la base de datos central y la regresa como un DataFrame de Pandas.
+    Abre el túnel SSH al VPS, lee los empleados activos de MariaDB
+    y regresa el DataFrame de Pandas formateado.
     """
-    # 1. Configurar y arrancar el Túnel SSH
-    tunnel = SSHTunnelForwarder(
-        (os.getenv("SSH_HOST"), int(os.getenv("SSH_PORT"))),                    # Host SSH / IP del VPS
-        ssh_username=os.getenv("SSH_USER"),         # 'agrocisa'
-        ssh_password=os.getenv("SSH_PASS"),         # Tu clave de SSH / GoDaddy
-        remote_bind_address=(os.getenv("VPS_HOST"), int(os.getenv("VPS_DB_PORT"))),     # Apunta al MariaDB dentro del VPS
-        allow_agent=False
-    )
-    
-    tunnel.start()
-    print("🔓 Túnel SSH abierto con éxito.")
-
     try:
-        # 2. Conectar a MariaDB a través del puerto local que asignó el túnel
+        tunnel = SSHTunnelForwarder(
+            (os.getenv("SSH_HOST"), int(os.getenv("SSH_PORT"))),
+            ssh_username=os.getenv("SSH_USER"),
+            ssh_password=os.getenv("SSH_PASS"),
+            remote_bind_address=(os.getenv("VPS_HOST"), int(os.getenv("VPS_DB_PORT"))),
+            allow_agent=False
+        )
+        tunnel.start()
+
         conexion = mysql.connector.connect(
             host=os.getenv("VPS_HOST"),
-            port=tunnel.local_bind_port,            # Puerto dinámico del túnel
-            user=os.getenv("VPS_DB_USER"),          # 'agrocisa' o el usuario de MariaDB
-            password=os.getenv("VPS_DB_PASS"),      # Clave de la BD
-            database=os.getenv("VPS_DB")            # La base de datos de César
+            port=tunnel.local_bind_port,
+            user=os.getenv("VPS_DB_USER"),
+            password=os.getenv("VPS_DB_PASS"),
+            database=os.getenv("VPS_DB")
         )
 
-        # 3. Traerte los datos directo a Pandas
-        query = "SELECT codigo, nombre, apellido_materno, apellido_paterno FROM empleados WHERE estatus = 'ACTIVO'"
-        
-        df_empleados = pd.read_sql(query, conexion)
+        query = "SELECT codigo, nombre, apellido_paterno, apellido_materno FROM empleados WHERE estatus = 'ACTIVO'"
+        df = pd.read_sql(query, conexion)
         
         conexion.close()
+        tunnel.stop()
+
+        # Limpieza y formato de strings con Pandas
+        df["nombre"] = df["nombre"].fillna("").astype(str).str.strip().str.title()
+        df["apellido_paterno"] = df["apellido_paterno"].fillna("").astype(str).str.strip().str.title()
+        df["apellido_materno"] = df["apellido_materno"].fillna("").astype(str).str.strip().str.title()
         
-        df_empleados["nombre"] = df_empleados["nombre"].fillna("").astype(str).str.strip().str.title()
-        df_empleados["apellido_paterno"] = df_empleados["apellido_paterno"].fillna("").astype(str).str.strip().str.title()
-        df_empleados["apellido_materno"] = df_empleados["apellido_materno"].fillna("").astype(str).str.strip().str.title()
-        
-        df_empleados["nombre_completo"] = (
-            (df_empleados["nombre"] + " " + df_empleados["apellido_paterno"] + " " + df_empleados["apellido_materno"])
+        df["nombre_completo"] = (
+            (df["nombre"] + " " + df["apellido_paterno"] + " " + df["apellido_materno"])
             .str.replace(r'\s+', ' ', regex=True)
         )
         
-        mapa_empleados = {}
-        
-        for _, row in df_empleados.iterrows():
-            nombre_completo = f"{row["nombre"]} {row["apellido_paterno"]} {row["apellido_materno"]}".strip()
-            label = f"{row["codigo"]} - {nombre_completo}"
+        return df
+
+    except Exception as e:
+        st.error(f"⚠️ Error de conexión SSH/MariaDB VPS: {e}")
+        return None
+
+def render():
+    st.subheader("⚙️ Panel de Control de Sincronización")
+    st.write("Conexión en vivo a MariaDB (GoDaddy VPS) a través de túnel SSH.")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if st.button("🔄 Consultar Cambios en VPS", type="primary"):
+            st.session_state["busqueda_vps"] = True
             
-            mapa_empleados[label] = {
-                "codigo": row["codigo"],
-                "nombre": row["nombre"],
-                "apellido_paterno": row["apellido_paterno"],
-                "apellido_materno": row["apellido_materno"],
-            }
+    with col2:
+        st.caption("Motor de BDD: **MariaDB + SSH Tunnel**")
+
+    # Si le picaron al botón de consultar
+    if st.session_state.get("busqueda_vps", False):
+        st.divider()
         
-        return mapa_empleados
-
-    finally:
-        # 4. SIEMPRE cerrar el túnel para no dejar conexiones colgadas en el servidor
-        tunnel.stop()
-        print("🔒 Túnel SSH cerrado.")
-
-obtener_empleados_vps()
+        # Muestra un spinner animado mientras abre el túnel SSH y consulta
+        with st.spinner("🔓 Abriendo túnel SSH y consultando MariaDB en el VPS..."):
+            df_vps = obtener_empleados_vps_df()
+            
+        if df_vps is not None and not df_vps.empty:
+            st.markdown("### 📋 Empleados Activos en VPS")
+            
+            # Mostramos la tabla limpia en Streamlit
+            st.dataframe(
+                df_vps[["codigo", "nombre_completo"]],
+                use_container_width=True
+            )
+            
+            st.metric(label="Total Empleados Activos VPS", value=f"{len(df_vps)} registros")
+        else:
+            st.warning("No se encontraron datos o falló la consulta a MariaDB.")

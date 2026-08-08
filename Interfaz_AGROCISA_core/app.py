@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 from dotenv import load_dotenv
+import sincronizador
 
 load_dotenv()
 
@@ -55,7 +56,7 @@ st.sidebar.write(f"👤 Operador: **{st.session_state['usuario']}**")
 if st.sidebar.button("Cerrar Sesión"):
     st.session_state["autenticado"] = False
     st.session_state["usuario"] = None
-    st.rerun()  # ¡Con "n" de naranja, bicho! 😂
+    st.rerun()
 
 st.sidebar.divider()
 
@@ -75,8 +76,7 @@ opcion_menu = st.sidebar.radio(
 
 if opcion_menu == "🔄 Sincronizador VPS":
     st.header("🔄 Sincronización Automática con VPS")
-    st.info("Módulo para procesar bajas del VPS, desvincular equipos y generar bitácora.")
-    # Aquí mandaremos llamar la lógica del sincronizador
+    sincronizador.render()
 
 elif opcion_menu == "📄 Generar Responsivas":
     st.header("📄 Generador de Responsivas (.docx)")
@@ -87,3 +87,4 @@ elif opcion_menu == "📱💻 Inventario de Equipos":
     st.header("📱💻 Gestión de Inventario de TI")
     st.info("Módulo para administrar el hardware, altas, estados y observaciones.")
     # Aquí mandaremos llamar la lógica del inventario
+    
