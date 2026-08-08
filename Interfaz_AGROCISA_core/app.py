@@ -69,3 +69,21 @@ opcion_menu = st.sidebar.radio(
     ]
 )
 
+# ---------------------------------------------------------
+# ENRUTADOR DE MÓDULOS (El cerebro del menú)
+# ---------------------------------------------------------
+
+if opcion_menu == "🔄 Sincronizador VPS":
+    st.header("🔄 Sincronización Automática con VPS")
+    st.info("Módulo para procesar bajas del VPS, desvincular equipos y generar bitácora.")
+    # Aquí mandaremos llamar la lógica del sincronizador
+
+elif opcion_menu == "📄 Generar Responsivas":
+    st.header("📄 Generador de Responsivas (.docx)")
+    st.info("Módulo para asignar equipos disponibles a personal activo y crear el documento.")
+    # Aquí mandaremos llamar la lógica de responsivas
+
+elif opcion_menu == "📱💻 Inventario de Equipos":
+    st.header("📱💻 Gestión de Inventario de TI")
+    st.info("Módulo para administrar el hardware, altas, estados y observaciones.")
+    # Aquí mandaremos llamar la lógica del inventario
