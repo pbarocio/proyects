@@ -2,14 +2,16 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 import sincronizador
-import catalogos  # <-- Módulo de catálogos importado
+import catalogos
+import inventario
+import responsivas
 
 load_dotenv()
 
 st.set_page_config(
     page_title = 'AGROCISA CORE',
     page_icon = "⚙️",
-    layout='wide' # Bájale el comentario para que las tablas de catálogos y Streamlit se vean a pantalla completa
+    layout='wide'
 )
 
 if "autenticado" not in st.session_state:
@@ -18,12 +20,17 @@ if "autenticado" not in st.session_state:
 if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
 
-# Función para validar credenciales
 def validar_login(user_ingresado, pass_ingresado):
-    USER_CORRECTO = os.getenv("APP_USER", "admin")
-    PASS_CORRECTO = os.getenv("APP_PASS", "admin123")
+    # Usuarios y contraseñas desde el .env
+    credenciales = {
+        os.getenv("USER_PABLO", "pablo"): os.getenv("PASS_PABLO", "admin123"),
+        os.getenv("USER_LUCY", "lucy"): os.getenv("PASS_LUCY", "luci123")
+    }
     
-    return user_ingresado == USER_CORRECTO and pass_ingresado == PASS_CORRECTO
+    # Valida si el usuario existe y si la contraseña coincide
+    if user_ingresado in credenciales and pass_ingresado == credenciales[user_ingresado]:
+        return True
+    return False
 
 if not st.session_state["autenticado"]:
     st.title("🔒 AGROCISA CORE")
@@ -66,7 +73,7 @@ opcion_menu = st.sidebar.radio(
     "Módulos del Sistema:",
     [
         "🔄 Sincronizador VPS",
-        "🗂️ Gestor de Catálogos", # <-- Nueva opción agregada
+        "🗂️ Gestor de Catálogos",
         "📄 Generar Responsivas",
         "📱💻 Inventario de Equipos"
     ]
@@ -81,12 +88,10 @@ if opcion_menu == "🔄 Sincronizador VPS":
     sincronizador.render()
 
 elif opcion_menu == "🗂️ Gestor de Catálogos":
-    catalogos.render() # <-- Llama la pantalla de catalogos.py
+    catalogos.render()
 
 elif opcion_menu == "📄 Generar Responsivas":
-    st.header("📄 Generador de Responsivas (.docx)")
-    st.info("Módulo para asignar equipos disponibles a personal activo y crear el documento.")
+    responsivas.render()
 
 elif opcion_menu == "📱💻 Inventario de Equipos":
-    st.header("📱💻 Gestión de Inventario de TI")
-    st.info("Módulo para administrar el hardware, altas, estados y observaciones.")
+    inventario.render()
