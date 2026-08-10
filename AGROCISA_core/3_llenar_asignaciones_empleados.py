@@ -172,6 +172,19 @@ df_empleados = df_asignaciones_puestos[
 ]
 #CONVERTIMOS LOS TELÉFONOS A STRING PARA EL VARCHAR
 df_empleados["Celular"] = df_empleados["Celular"].apply(limpiar_telefono)
+
+df_empleados["id_tipo_contrato"] = 1
+df_empleados["id_estatus_empleado"] = 1
+
+df_empleados["nombre"] = df_empleados["nombre"].str.title()
+df_empleados["apellido_paterno"] = df_empleados["apellido_paterno"].str.title()
+df_empleados["apellido_materno"] = df_empleados["apellido_materno"].str.title()
+
+df_empleados.rename(columns={
+    'Celular': 'numero_telefono',
+    'Zona' : 'zona',
+    },inplace=True)
+
 #DEFINIMOS LA COLUMNA PARA LA TABLA EMPLEADOS
 columnas_empleados = [
     'codigo',
@@ -181,20 +194,11 @@ columnas_empleados = [
     'id_sucursal',
     'id_departamento',
     'id_puesto',
-    'Celular',
+    'id_tipo_contrato',
+    'numero_telefono',
+    'id_estatus_empleado',
 ]
 df_empleados = df_empleados[columnas_empleados]
-
-df_empleados.rename(columns={
-    'Celular': 'numero_telefono',
-    'Zona' : 'zona',
-    },inplace=True)
-
-df_empleados["id_estatus_empleado"] = 1
-
-df_empleados["nombre"] = df_empleados["nombre"].str.title()
-df_empleados["apellido_paterno"] = df_empleados["apellido_paterno"].str.title()
-df_empleados["apellido_materno"] = df_empleados["apellido_materno"].str.title()
 
 #Escribimos la hoja de empleados
 with pandas.ExcelWriter(directorio_nuevo, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:

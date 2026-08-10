@@ -41,7 +41,8 @@ def obtener_empleados_vps():
         )
 
         # 3. Traerte los datos directo a Pandas
-        query = "SELECT codigo, nombre, apellido_materno, apellido_paterno FROM empleados WHERE estatus = 'ACTIVO' ORDER BY codigo ASC"
+        #query = "SELECT codigo, nombre, apellido_materno, apellido_paterno FROM empleados WHERE estatus = 'ACTIVO' ORDER BY codigo ASC"
+        query = "SELECT codigo, nombre, apellido_materno, apellido_paterno FROM empleados ORDER BY codigo ASC"
         df_empleados = pd.read_sql(query, conexion)
         
         conexion.close()

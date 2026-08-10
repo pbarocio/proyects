@@ -175,6 +175,15 @@ def main():
     print("¡Tabla 'estatus_monitores' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tipo_contrato_empleados (
+            id_tipo_contrato INT PRIMARY KEY AUTO_INCREMENT,
+            tipo_contrato VARCHAR(100)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+                
+    print("¡Tabla 'tipo_contrato_empleados' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS estatus_tablets (
             id_estatus_tablet INT PRIMARY KEY AUTO_INCREMENT,
             estatus_tablet VARCHAR(100)
@@ -192,11 +201,13 @@ def main():
             id_sucursal INT,
             id_departamento INT,
             id_puesto INT,
+            id_tipo_contrato INT,
             numero_telefono VARCHAR(20),
             id_estatus_empleado INT,
             FOREIGN KEY (id_sucursal) REFERENCES sucursales(id_sucursal),
             FOREIGN KEY (id_departamento) REFERENCES departamentos(id_departamento),
             FOREIGN KEY (id_puesto) REFERENCES puestos(id_puesto),
+            FOREIGN KEY (id_tipo_contrato) REFERENCES tipo_contrato_empleados (id_tipo_contrato),
             FOREIGN KEY (numero_telefono) REFERENCES lineas_telcel(numero),
             FOREIGN KEY (id_estatus_empleado) REFERENCES estatus_empleados(id_estatus_empleado)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

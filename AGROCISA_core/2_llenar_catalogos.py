@@ -362,6 +362,20 @@ def fill_tablets_status(cursor):
     """, tablets_status)
 
     print(f"¡Se han cargado {cursor.rowcount} 'estatus_tablets' nuevos al catálogo!")
+    
+def fill_tipo_contrato(cursor):
+    contract_type = [
+        ("INTERNO",),
+        ("EXTERNO",)
+    ]
+
+    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
+    cursor.executemany("""
+    INSERT IGNORE INTO tipo_contrato_empleados (tipo_contrato) 
+    VALUES (%s);
+    """, contract_type)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'tipo_contrato' nuevos al catálogo!")
 
 # El mismo candado aquí para evitar cargas de datos por accidente
 if __name__ == "__main__":
@@ -388,5 +402,6 @@ if __name__ == "__main__":
     fill_laptops_status(cursor)
     fill_monitor_status(cursor)
     fill_tablets_status(cursor)
+    fill_tipo_contrato(cursor)
     connecction.commit()
     connecction.close()
