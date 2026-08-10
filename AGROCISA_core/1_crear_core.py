@@ -193,6 +193,15 @@ def main():
     print("¡Tabla 'estatus_tablets' creada exitosamente en agrocisa_core.db!")
     
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS estatus_responsivas (
+            id_estatus_responsiva INT PRIMARY KEY AUTO_INCREMENT,
+            estatus_responsiva VARCHAR(100)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    """)
+            
+    print("¡Tabla 'estatus_responsivas' creada exitosamente en agrocisa_core.db!")
+    
+    cursor.execute("""
         CREATE TABLE IF NOT EXISTS empleados (
             codigo VARCHAR(20) PRIMARY KEY,
             apellido_paterno VARCHAR(100),
@@ -416,10 +425,12 @@ def main():
         codigo_empleado VARCHAR(20),
         numero VARCHAR(20),
         imei VARCHAR(20),
+        id_status INT,
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados(codigo),
         FOREIGN KEY (numero) REFERENCES lineas_telefonicas(numero),
-        FOREIGN KEY (imei) REFERENCES inventario_celulares(imei)
+        FOREIGN KEY (imei) REFERENCES inventario_celulares(imei),
+        FOREIGN KEY (id_status) REFERENCES estatus_responsivas (id_estatus_responsiva)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
         
@@ -431,9 +442,11 @@ def main():
         id_cpu INT,
         fecha_entrega DATE NOT NULL,
         codigo_empleado VARCHAR(20),
+        id_status INT,
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
-        FOREIGN KEY (id_cpu) REFERENCES inventario_cpu(id_cpu)
+        FOREIGN KEY (id_cpu) REFERENCES inventario_cpu(id_cpu),
+        FOREIGN KEY (id_status) REFERENCES estatus_responsivas (id_estatus_responsiva)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
         
@@ -445,9 +458,11 @@ def main():
         fecha_entrega DATE NOT NULL,
         codigo_empleado VARCHAR(20),
         numero_serie VARCHAR(100),
+        id_status INT,
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
-        FOREIGN KEY (numero_serie) REFERENCES inventario_laptops(numero_serie)
+        FOREIGN KEY (numero_serie) REFERENCES inventario_laptops(numero_serie),
+        FOREIGN KEY (id_status) REFERENCES estatus_responsivas (id_estatus_responsiva)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
         
@@ -459,9 +474,11 @@ def main():
         fecha_entrega DATE NOT NULL,
         codigo_empleado VARCHAR(20),
         numero_serie VARCHAR(100),
+        id_status INT,
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
-        FOREIGN KEY (numero_serie) REFERENCES inventario_monitores(numero_serie)
+        FOREIGN KEY (numero_serie) REFERENCES inventario_monitores(numero_serie),
+        FOREIGN KEY (id_status) REFERENCES estatus_responsivas (id_estatus_responsiva)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
         
@@ -473,9 +490,11 @@ def main():
         fecha_entrega DATE NOT NULL,
         codigo_empleado VARCHAR(20),
         numero_serie VARCHAR(100),
+        id_status INT,
         
         FOREIGN KEY (codigo_empleado) REFERENCES empleados (codigo),
-        FOREIGN KEY (numero_serie) REFERENCES inventario_tablets(numero_serie)
+        FOREIGN KEY (numero_serie) REFERENCES inventario_tablets(numero_serie),
+        FOREIGN KEY (id_status) REFERENCES estatus_responsivas (id_estatus_responsiva)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     """)
         

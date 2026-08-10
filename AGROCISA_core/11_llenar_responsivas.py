@@ -85,6 +85,8 @@ query_celulares = """
 df_responsivas_celualres = pandas.read_sql_query(query_celulares, con=engine)
 df_responsivas_celualres['fecha_entrega'] = df_responsivas_celualres['fecha_entrega'].apply(normalizar_fecha_iso)
 
+df_responsivas_celualres["id_status"] = 1
+
 df_responsivas_celualres.to_sql(
     name='responsivas_celulares',
     con=engine,
@@ -101,6 +103,8 @@ query_cpu = """
 
 df_responsivas_cpu = pandas.read_sql_query(query_cpu, con=engine)
 df_responsivas_cpu['fecha_entrega'] = df_responsivas_cpu['fecha_entrega'].apply(normalizar_fecha_iso)
+
+df_responsivas_cpu["id_status"] = 1
 
 df_responsivas_cpu.to_sql(
     name='responsivas_cpu',
@@ -119,6 +123,8 @@ query_laptops = """
 df_responsivas_laptops = pandas.read_sql_query(query_laptops, con=engine)
 df_responsivas_laptops['fecha_entrega'] = df_responsivas_laptops['fecha_entrega'].apply(normalizar_fecha_iso)
 
+df_responsivas_laptops["id_status"] = 1
+
 df_responsivas_laptops.to_sql(
     name='responsivas_laptops',
     con=engine,
@@ -136,6 +142,8 @@ query_monitores = """
 df_responsivas_monitores = pandas.read_sql_query(query_monitores, con=engine)
 df_responsivas_monitores['fecha_entrega'] = df_responsivas_monitores['fecha_entrega'].apply(normalizar_fecha_iso)
 
+df_responsivas_monitores["id_status"] = 1
+
 df_responsivas_monitores.to_sql(
     name='responsivas_monitores',
     con=engine,
@@ -152,6 +160,8 @@ query_tablets = """
 
 df_responsivas_tablets = pandas.read_sql_query(query_tablets, con=engine)
 df_responsivas_tablets['fecha_entrega'] = df_responsivas_tablets['fecha_entrega'].apply(normalizar_fecha_iso)
+
+df_responsivas_tablets["id_status"] = 1
 
 df_responsivas_tablets.to_sql(
     name='responsivas_tablets',

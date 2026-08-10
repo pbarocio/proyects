@@ -47,6 +47,7 @@ def fill_departments(cursor):
         ("Sin Asignar",),
         ("Sistemas",),
         ("Staff",),
+        ("Taller",),
         ("Vigilancia",),
     ]
 
@@ -166,8 +167,8 @@ def fill_hd_type(cursor):
     
 def fill_renew(cursor):
     renew_list = [
-        ("Sí",),
-        ("No",),
+        ("SÍ",),
+        ("NO",),
     ]
 
     cursor.executemany("""
@@ -282,7 +283,11 @@ def fill_employee_status(cursor):
 def fill_mobile_phone_status(cursor):
     mobile_phone_status = [
         ("ACTIVO",),
-        ("INACTIVO",)
+        ("INACTIVO",),
+        ("ASIGNADO",),
+        ("DISPONIBLE",),
+        ("EN MANTENIMIENTO",),
+        ("EN REPARACIÓN",),
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
@@ -296,7 +301,11 @@ def fill_mobile_phone_status(cursor):
 def fill_mobile_line_status(cursor):
     mobile_line_status = [
         ("ACTIVO",),
-        ("INACTIVO",)
+        ("INACTIVO",),
+        ("ASIGNADO",),
+        ("DISPONIBLE",),
+        ("EN MANTENIMIENTO",),
+        ("EN REPARACIÓN",),
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
@@ -310,7 +319,11 @@ def fill_mobile_line_status(cursor):
 def fill_cpu_status(cursor):
     cpu_status = [
         ("ACTIVO",),
-        ("INACTIVO",)
+        ("INACTIVO",),
+        ("ASIGNADO",),
+        ("DISPONIBLE",),
+        ("EN MANTENIMIENTO",),
+        ("EN REPARACIÓN",),
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
@@ -324,7 +337,11 @@ def fill_cpu_status(cursor):
 def fill_laptops_status(cursor):
     laptops_status = [
         ("ACTIVO",),
-        ("INACTIVO",)
+        ("INACTIVO",),
+        ("ASIGNADO",),
+        ("DISPONIBLE",),
+        ("EN MANTENIMIENTO",),
+        ("EN REPARACIÓN",),
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
@@ -338,7 +355,11 @@ def fill_laptops_status(cursor):
 def fill_monitor_status(cursor):
     monitor_status = [
         ("ACTIVO",),
-        ("INACTIVO",)
+        ("INACTIVO",),
+        ("ASIGNADO",),
+        ("DISPONIBLE",),
+        ("EN MANTENIMIENTO",),
+        ("EN REPARACIÓN",),
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
@@ -352,7 +373,11 @@ def fill_monitor_status(cursor):
 def fill_tablets_status(cursor):
     tablets_status = [
         ("ACTIVO",),
-        ("INACTIVO",)
+        ("INACTIVO",),
+        ("ASIGNADO",),
+        ("DISPONIBLE",),
+        ("EN MANTENIMIENTO",),
+        ("EN REPARACIÓN",),
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
@@ -369,13 +394,25 @@ def fill_tipo_contrato(cursor):
         ("EXTERNO",)
     ]
 
-    # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
     cursor.executemany("""
     INSERT IGNORE INTO tipo_contrato_empleados (tipo_contrato) 
     VALUES (%s);
     """, contract_type)
 
     print(f"¡Se han cargado {cursor.rowcount} 'tipo_contrato' nuevos al catálogo!")
+    
+def fill_estatus_responsiva(cursor):
+    estatus_responsiva = [
+        ("ACTIVO",),
+        ("INACTIVO",)
+    ]
+
+    cursor.executemany("""
+    INSERT IGNORE INTO estatus_responsivas (estatus_responsiva) 
+    VALUES (%s);
+    """, estatus_responsiva)
+
+    print(f"¡Se han cargado {cursor.rowcount} 'esattus_responsivas' nuevos al catálogo!")
 
 # El mismo candado aquí para evitar cargas de datos por accidente
 if __name__ == "__main__":
@@ -403,5 +440,6 @@ if __name__ == "__main__":
     fill_monitor_status(cursor)
     fill_tablets_status(cursor)
     fill_tipo_contrato(cursor)
+    fill_estatus_responsiva(cursor)
     connecction.commit()
     connecction.close()
