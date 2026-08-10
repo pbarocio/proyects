@@ -2,13 +2,14 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 import sincronizador
+import catalogos  # <-- Módulo de catálogos importado
 
 load_dotenv()
 
 st.set_page_config(
     page_title = 'AGROCISA CORE',
     page_icon = "⚙️",
-    #layout='wide'
+    layout='wide' # Bájale el comentario para que las tablas de catálogos y Streamlit se vean a pantalla completa
 )
 
 if "autenticado" not in st.session_state:
@@ -30,7 +31,7 @@ if not st.session_state["autenticado"]:
     
     with st.form("form_login"):
         st.subheader("Iniciar Sesión")
-        usuario_input = st.text_input("Usuario", type="password")
+        usuario_input = st.text_input("Usuario", type="default") # Quitamos type="password" para ver el nombre al teclear
         pass_input = st.text_input("Contraseña", type="password")
         submit = st.form_submit_button("Entrar al Sistema")
         
@@ -65,6 +66,7 @@ opcion_menu = st.sidebar.radio(
     "Módulos del Sistema:",
     [
         "🔄 Sincronizador VPS",
+        "🗂️ Gestor de Catálogos", # <-- Nueva opción agregada
         "📄 Generar Responsivas",
         "📱💻 Inventario de Equipos"
     ]
@@ -78,13 +80,13 @@ if opcion_menu == "🔄 Sincronizador VPS":
     st.header("🔄 Sincronización Automática con VPS")
     sincronizador.render()
 
+elif opcion_menu == "🗂️ Gestor de Catálogos":
+    catalogos.render() # <-- Llama la pantalla de catalogos.py
+
 elif opcion_menu == "📄 Generar Responsivas":
     st.header("📄 Generador de Responsivas (.docx)")
     st.info("Módulo para asignar equipos disponibles a personal activo y crear el documento.")
-    # Aquí mandaremos llamar la lógica de responsivas
 
 elif opcion_menu == "📱💻 Inventario de Equipos":
     st.header("📱💻 Gestión de Inventario de TI")
     st.info("Módulo para administrar el hardware, altas, estados y observaciones.")
-    # Aquí mandaremos llamar la lógica del inventario
-    
