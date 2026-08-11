@@ -5,6 +5,9 @@ import sincronizador
 import catalogos
 import inventario
 import responsivas
+import correos_electronicos
+import reporteria
+import sync_drive
 
 load_dotenv()
 
@@ -56,6 +59,59 @@ if not st.session_state["autenticado"]:
 # INTERFAZ PRINCIPAL (Solo se ve si ya se autenticó)
 # ---------------------------------------------------------
 
+def aplicar_estilo_global_sb_admin():
+    st.markdown("""
+        <style>
+            /* Fondo global y contenedores principales */
+            .stApp { background-color: #0f172a !important; }
+            .block-container {
+                padding-top: 1.5rem !important;
+                padding-bottom: 2rem !important;
+                max-width: 95% !important;
+            }
+
+            /* Sidebar estilo SB Admin */
+            section[data-testid="stSidebar"] {
+                background-color: #1e293b !important;
+                border-right: 1px solid #334155 !important;
+            }
+            section[data-testid="stSidebar"] * {
+                color: #f8fafc !important;
+            }
+
+            /* Botones estilo Bootstrap / Admin */
+            div.stButton > button[kind="primary"] {
+                background-color: #2563eb !important;
+                color: #ffffff !important;
+                border: none !important;
+                border-radius: 6px !important;
+                font-weight: 600 !important;
+                transition: all 0.2s ease-in-out !important;
+            }
+            div.stButton > button[kind="primary"]:hover {
+                background-color: #1d4ed8 !important;
+                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4) !important;
+            }
+
+            /* Inputs y Selectbox encajados en el tema oscuro */
+            div[data-baseweb="select"] > div, input {
+                background-color: #1e293b !important;
+                border-color: #334155 !important;
+                color: #f8fafc !important;
+                border-radius: 6px !important;
+            }
+
+            /* Tablas y Dataframes */
+            div[data-testid="stDataFrame"] {
+                border: 1px solid #334155 !important;
+                border-radius: 8px !important;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
+# Llama la función al mero inicio de tu app.py:
+aplicar_estilo_global_sb_admin()
+
 # Panel Lateral (Sidebar)
 st.sidebar.title("⚙️ AGROCISA_core")
 st.sidebar.write(f"👤 Operador: **{st.session_state['usuario']}**")
@@ -72,10 +128,13 @@ st.sidebar.divider()
 opcion_menu = st.sidebar.radio(
     "Módulos del Sistema:",
     [
+        "🏠 Inicio",
         "🔄 Sincronizador VPS",
+        "✉️ Correos y Empleados",
         "🗂️ Gestor de Catálogos",
         "📄 Generar Responsivas",
-        "📱💻 Inventario de Equipos"
+        "📱💻 Inventario de Equipos",
+        "📊 Reportería y Métricas",
     ]
 )
 
@@ -83,7 +142,35 @@ opcion_menu = st.sidebar.radio(
 # ENRUTADOR DE MÓDULOS (El cerebro del menú)
 # ---------------------------------------------------------
 
-if opcion_menu == "🔄 Sincronizador VPS":
+if opcion_menu == "🏠 Inicio":
+    st.title("⚙️ AGROCISA_core")
+    st.caption("Sistema Central de Infraestructura, Inventarios y Automatización de TI")
+
+    # Si tienes un archivo de imagen en la carpeta, lo cargas así:
+    # st.image("logo.png", width=280)
+
+    st.markdown("---")
+    st.markdown(f"### 👋 ¡Bienvenido de vuelta, **{st.session_state['usuario']}**!")
+    st.write("Selecciona un módulo en la barra lateral para empezar a trabajar o realizar consultas.")
+
+    st.write("")
+
+    # Accesos rápidos visuales tipo Tarjeta
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.info("🔄 **Sincronizador VPS**\n\nGestiona los Colaboradores sincronizando con app.agrocisa.com.mx. para Altas/Bajas")
+    
+    with col2:
+        st.info("📊 **Reportería & Drive**\n\nConsulta el inventario general, gráficas de distribución y sincroniza con Google Sheets.")
+        
+    with col3:
+        st.info("📄 **Gestión de Responsivas**\n\nAsigna hardware a colaboradores y genera cartas responsivas automáticas en Word.")
+
+    with col4:
+        st.info("💻📱 **Control de Inventario**\n\nRegistra y edita celulares, computadoras, monitores, tablets y redes.")
+
+elif opcion_menu == "🔄 Sincronizador VPS":
     st.header("🔄 Sincronización Automática con VPS")
     sincronizador.render()
 
@@ -95,3 +182,9 @@ elif opcion_menu == "📄 Generar Responsivas":
 
 elif opcion_menu == "📱💻 Inventario de Equipos":
     inventario.render()
+    
+elif opcion_menu == "✉️ Correos y Empleados":
+    correos_electronicos.render()
+
+elif opcion_menu == "📊 Reportería y Métricas":
+    reporteria.render()
