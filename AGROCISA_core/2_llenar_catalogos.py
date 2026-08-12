@@ -304,8 +304,7 @@ def fill_mobile_line_status(cursor):
         ("INACTIVO",),
         ("ASIGNADO",),
         ("DISPONIBLE",),
-        ("EN MANTENIMIENTO",),
-        ("EN REPARACIÓN",),
+        ("V.I.P.",),
     ]
 
     # En el INSERT mapeamos las 3 columnas correspondientes a las 3 '%s'
