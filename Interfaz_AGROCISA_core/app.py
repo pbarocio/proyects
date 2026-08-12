@@ -8,6 +8,8 @@ import responsivas
 import correos_electronicos
 import reporteria
 import sync_drive
+import lineas
+import consulta_responsivas
 
 load_dotenv()
 
@@ -133,6 +135,8 @@ opcion_menu = st.sidebar.radio(
         "✉️ Correos y Empleados",
         "🗂️ Gestor de Catálogos",
         "📄 Generar Responsivas",
+        "🔍 Consultar Responsivas",
+        "📞 Control de Líneas Telefónicas",
         "📱💻 Inventario de Equipos",
         "📊 Reportería y Métricas",
     ]
@@ -179,6 +183,12 @@ elif opcion_menu == "🗂️ Gestor de Catálogos":
 
 elif opcion_menu == "📄 Generar Responsivas":
     responsivas.render()
+
+elif opcion_menu == "🔍 Consultar Responsivas":
+    consulta_responsivas.render_consulta()
+
+elif opcion_menu == "📞 Control de Líneas Telefónicas":
+    lineas.render()
 
 elif opcion_menu == "📱💻 Inventario de Equipos":
     inventario.render()

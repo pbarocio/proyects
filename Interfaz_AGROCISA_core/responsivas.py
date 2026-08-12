@@ -129,7 +129,7 @@ def obtener_equipos_disponibles():
         return equipos
 
     try:
-        # Celulares DISPONIBLES (id_estatus = 4)
+        # 1. Celulares DISPONIBLES (Filtra líneas V.I.P. con id_estatus != 5)
         df_cel = pd.read_sql("""
             SELECT ic.imei, ic.numero, ic.numero_serie, m.marca_modelo AS equipo, m.precio, 
                    ic.id_condicion, c.condicion_opcion AS condicion, 
@@ -142,13 +142,15 @@ def obtener_equipos_disponibles():
             LEFT JOIN cargadores ca ON ic.id_cargador = ca.id_cargador
             LEFT JOIN caja ON ic.id_caja = caja.id_caja
             LEFT JOIN lineas_telefonicas lt ON ic.numero = lt.numero
-            WHERE ic.id_estatus_celular = 4
+            WHERE ic.id_estatus_celular = 4 
+              AND (lt.id_estatus_linea IS NULL OR lt.id_estatus_linea != 5)
         """, conn)
         for _, r in df_cel.iterrows():
-            lbl = f"IMEI: {r['imei']} - {r['equipo']} (Línea: {r['numero'] or 'S/N'})"
+            obs_txt = f" | Obs: {r['observaciones']}" if pd.notna(r['observaciones']) and str(r['observaciones']).strip() else ""
+            lbl = f"IMEI: {r['imei']} - {r['equipo']} (Línea: {r['numero'] or 'S/N'}){obs_txt}"
             equipos["celulares"].append({"id": r['imei'], "label": lbl, "data": r.to_dict()})
 
-        # Laptops DISPONIBLES
+        # 2. Laptops DISPONIBLES + Observaciones
         df_lap = pd.read_sql("""
             SELECT il.numero_serie, il.marca, il.modelo, il.hostname, il.observaciones, il.comentarios, 
                    il.id_condicion, con.condicion_opcion AS condicion_lap, 
@@ -160,10 +162,11 @@ def obtener_equipos_disponibles():
             WHERE il.id_estatus_laptops = 4
         """, conn)
         for _, r in df_lap.iterrows():
-            lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']} [{r['hostname']}]"
+            obs_txt = f" | Obs: {r['observaciones']}" if pd.notna(r['observaciones']) and str(r['observaciones']).strip() else ""
+            lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']} [{r['hostname']}]{obs_txt}"
             equipos["laptops"].append({"id": r['numero_serie'], "label": lbl, "data": r.to_dict()})
 
-        # CPUs DISPONIBLES
+        # 3. CPUs DISPONIBLES + Observaciones
         df_cpu = pd.read_sql("""
             SELECT icp.hostname, icp.numero_serie, icp.procesador, icp.memoria_ram, icp.almacenamiento, 
                    thd.hdd_opcion AS tipo_hdd, icp.id_condicion, con.condicion_opcion AS condicion, 
@@ -174,10 +177,11 @@ def obtener_equipos_disponibles():
             WHERE icp.id_estatus_cpu = 4
         """, conn)
         for _, r in df_cpu.iterrows():
-            lbl = f"Host: {r['hostname']} - Serie: {r['numero_serie']}"
+            obs_txt = f" | Obs: {r['observaciones']}" if pd.notna(r['observaciones']) and str(r['observaciones']).strip() else ""
+            lbl = f"Host: {r['hostname']} - Serie: {r['numero_serie']}{obs_txt}"
             equipos["cpus"].append({"id": r['hostname'], "label": lbl, "data": r.to_dict()})
 
-        # Monitores DISPONIBLES
+        # 4. Monitores DISPONIBLES + Observaciones
         df_mon = pd.read_sql("""
             SELECT imon.numero_serie, imon.marca, imon.modelo, imon.id_condicion, 
                    imon.id_estatus_monitor, imon.observaciones, imon.comentarios, 0 AS precio
@@ -185,10 +189,11 @@ def obtener_equipos_disponibles():
             WHERE imon.id_estatus_monitor = 4
         """, conn)
         for _, r in df_mon.iterrows():
-            lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']}"
+            obs_txt = f" | Obs: {r['observaciones']}" if pd.notna(r['observaciones']) and str(r['observaciones']).strip() else ""
+            lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']}{obs_txt}"
             equipos["monitores"].append({"id": r['numero_serie'], "label": lbl, "data": r.to_dict()})
 
-        # Tablets DISPONIBLES
+        # 5. Tablets DISPONIBLES + Observaciones
         df_tab = pd.read_sql("""
             SELECT itab.numero_serie, itab.imei, itab.marca, itab.modelo, 
                    itab.id_condicion, con.condicion_opcion AS condicion, 
@@ -200,7 +205,8 @@ def obtener_equipos_disponibles():
             WHERE itab.id_estatus_tablet = 4
         """, conn)
         for _, r in df_tab.iterrows():
-            lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']}"
+            obs_txt = f" | Obs: {r['observaciones']}" if pd.notna(r['observaciones']) and str(r['observaciones']).strip() else ""
+            lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']}{obs_txt}"
             equipos["tablets"].append({"id": r['numero_serie'], "label": lbl, "data": r.to_dict()})
 
     except Exception as e:
@@ -256,10 +262,12 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
             cursor.execute(f"INSERT INTO {tabla} ({cols_str}) VALUES ({placeholders})", tuple(vals_f))
 
         # 1. Celular
+        # 1. Celular
         if cel_sel:
             d = cel_sel['data']
             cerrar_responsivas_previas("responsivas_celulares", "imei", d['imei'])
             
+            # Actualiza inventario de celulares
             cursor.execute("""
                 UPDATE inventario_celulares 
                 SET id_estatus_celular = %s, codigo_empleado = %s, numero = %s, 
@@ -268,6 +276,14 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
                 WHERE imei = %s
             """, (d.get('estatus_edit', 3), codigo_emp_exacto, d.get('num_edit'), d.get('cond_edit'), d.get('carg_edit'), d.get('caja_edit'), d.get('obs_edit', ''), d.get('com_edit', ''), d['imei']))
             
+            # 💥 PARCHE LÍNEA: Cambia el estatus de la línea telefónica a ASIGNADO (3) y amarra el empleado
+            if d.get('num_edit'):
+                cursor.execute("""
+                    UPDATE lineas_telefonicas 
+                    SET id_estatus_linea = 3, codigo_empleado = %s 
+                    WHERE numero = %s
+                """, (codigo_emp_exacto, d.get('num_edit')))
+
             ejecutar_insert_adaptativo("responsivas_celulares", {
                 "fecha_entrega": f_hoy, "codigo_empleado": codigo_emp_exacto, "numero": d.get('num_edit'), "imei": d['imei']
             })
