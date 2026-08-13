@@ -14,8 +14,8 @@ import consulta_responsivas
 load_dotenv()
 
 st.set_page_config(
-    page_title = 'AGROCISA CORE',
-    page_icon = "⚙️",
+    page_title='AGROCISA CORE',
+    page_icon="⚙️",
     layout='wide'
 )
 
@@ -26,13 +26,10 @@ if "usuario" not in st.session_state:
     st.session_state["usuario"] = None
 
 def validar_login(user_ingresado, pass_ingresado):
-    # Usuarios y contraseñas desde el .env
     credenciales = {
         os.getenv("USER_PABLO", "pablo"): os.getenv("PASS_PABLO", "admin123"),
         os.getenv("USER_LUCY", "lucy"): os.getenv("PASS_LUCY", "luci123")
     }
-    
-    # Valida si el usuario existe y si la contraseña coincide
     if user_ingresado in credenciales and pass_ingresado == credenciales[user_ingresado]:
         return True
     return False
@@ -43,7 +40,7 @@ if not st.session_state["autenticado"]:
     
     with st.form("form_login"):
         st.subheader("Iniciar Sesión")
-        usuario_input = st.text_input("Usuario", type="default") # Quitamos type="password" para ver el nombre al teclear
+        usuario_input = st.text_input("Usuario", type="default")
         pass_input = st.text_input("Contraseña", type="password")
         submit = st.form_submit_button("Entrar al Sistema")
         
@@ -58,13 +55,13 @@ if not st.session_state["autenticado"]:
     st.stop()
 
 # ---------------------------------------------------------
-# INTERFAZ PRINCIPAL (Solo se ve si ya se autenticó)
+# INTERFAZ PRINCIPAL Y ESTILOS AVANZADOS DEL SIDEBAR
 # ---------------------------------------------------------
 
 def aplicar_estilo_global_sb_admin():
     st.markdown("""
         <style>
-            /* Fondo global y contenedores principales */
+            /* Fondo global */
             .stApp { background-color: #0f172a !important; }
             .block-container {
                 padding-top: 1.5rem !important;
@@ -72,30 +69,94 @@ def aplicar_estilo_global_sb_admin():
                 max-width: 95% !important;
             }
 
-            /* Sidebar estilo SB Admin */
+            /* Sidebar */
             section[data-testid="stSidebar"] {
-                background-color: #1e293b !important;
-                border-right: 1px solid #334155 !important;
-            }
-            section[data-testid="stSidebar"] * {
-                color: #f8fafc !important;
+                background-color: #0f172a !important;
+                border-right: 1px solid #1e293b !important;
             }
 
-            /* Botones estilo Bootstrap / Admin */
+            /* Tarjeta de usuario */
+            .user-card {
+                background-color: #1e293b;
+                border: 1px solid #334155;
+                border-radius: 8px;
+                padding: 10px 14px;
+                margin-bottom: 12px;
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+
+            /* Título del menú */
+            .sidebar-section-title {
+                font-size: 0.72rem;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+                color: #64748b;
+                font-weight: 700;
+                margin-top: 12px;
+                margin-bottom: 8px;
+            }
+
+            /* TUNEADO DE RADIO BUTTONS DE STREAMLIT */
+            /* Ocultar ÚNICAMENTE el círculo/radio button nativo */
+            section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] p {
+                font-size: 0.9rem !important;
+                font-weight: 600 !important;
+            }
+
+            section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label > div:first-child {
+                display: none !important;
+            }
+
+            /* Contenedor tipo Tarjeta para las opciones */
+            section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label {
+                background-color: #1e293b !important;
+                border: 1px solid #334155 !important;
+                border-radius: 8px !important;
+                padding: 10px 14px !important;
+                margin-bottom: 6px !important;
+                width: 100% !important;
+                cursor: pointer !important;
+                transition: all 0.2s ease-in-out !important;
+            }
+
+            /* Forzar texto visible */
+            section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label * {
+                color: #cbd5e1 !important;
+            }
+
+            /* Hover */
+            section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:hover {
+                background-color: #334155 !important;
+                border-color: #38bdf8 !important;
+                transform: translateX(4px);
+            }
+            section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label:hover * {
+                color: #ffffff !important;
+            }
+
+            /* Opción Seleccionada / Activa */
+            section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label[data-checked="true"] {
+                background: linear-gradient(90deg, #0284c7 0%, #0369a1 100%) !important;
+                border-color: #38bdf8 !important;
+                box-shadow: 0px 4px 12px rgba(56, 189, 248, 0.25) !important;
+            }
+            section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label[data-checked="true"] * {
+                color: #ffffff !important;
+                font-weight: 700 !important;
+            }
+
+            /* Botón primario */
             div.stButton > button[kind="primary"] {
                 background-color: #2563eb !important;
                 color: #ffffff !important;
                 border: none !important;
                 border-radius: 6px !important;
                 font-weight: 600 !important;
-                transition: all 0.2s ease-in-out !important;
-            }
-            div.stButton > button[kind="primary"]:hover {
-                background-color: #1d4ed8 !important;
-                box-shadow: 0 4px 12px rgba(37, 99, 235, 0.4) !important;
             }
 
-            /* Inputs y Selectbox encajados en el tema oscuro */
+            /* Inputs y Selects */
             div[data-baseweb="select"] > div, input {
                 background-color: #1e293b !important;
                 border-color: #334155 !important;
@@ -103,7 +164,7 @@ def aplicar_estilo_global_sb_admin():
                 border-radius: 6px !important;
             }
 
-            /* Tablas y Dataframes */
+            /* Dataframes */
             div[data-testid="stDataFrame"] {
                 border: 1px solid #334155 !important;
                 border-radius: 8px !important;
@@ -111,47 +172,52 @@ def aplicar_estilo_global_sb_admin():
         </style>
     """, unsafe_allow_html=True)
 
-# Llama la función al mero inicio de tu app.py:
 aplicar_estilo_global_sb_admin()
 
 # Panel Lateral (Sidebar)
-st.sidebar.title("⚙️ AGROCISA_core")
-st.sidebar.write(f"👤 Operador: **{st.session_state['usuario']}**")
+with st.sidebar:
+    st.title("⚙️ AGROCISA_core")
+    
+    st.markdown(f"""
+        <div class="user-card">
+            <span style="color: #38bdf8; font-size: 1.1rem;">👤</span>
+            <div>
+                <div style="font-size: 0.7rem; color: #64748b; text-transform: uppercase;">Operador Activo</div>
+                <div style="font-weight: bold; color: #f8fafc;">{st.session_state['usuario']}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
-# Botón para salir del sistema
-if st.sidebar.button("Cerrar Sesión"):
-    st.session_state["autenticado"] = False
-    st.session_state["usuario"] = None
-    st.rerun()
+    if st.button("🚪 Cerrar Sesión", use_container_width=True):
+        st.session_state["autenticado"] = False
+        st.session_state["usuario"] = None
+        st.rerun()
 
-st.sidebar.divider()
+    st.markdown('<div class="sidebar-section-title">Módulos del Sistema</div>', unsafe_allow_html=True)
 
-# Menú de opciones (Módulos)
-opcion_menu = st.sidebar.radio(
-    "Módulos del Sistema:",
-    [
-        "🏠 Inicio",
-        "🔄 Sincronizador VPS",
-        "✉️ Correos y Empleados",
-        "🗂️ Gestor de Catálogos",
-        "📄 Generar Responsivas",
-        "🔍 Consultar Responsivas",
-        "📞 Control de Líneas Telefónicas",
-        "📱💻 Inventario de Equipos",
-        "📊 Reportería y Métricas",
-    ]
-)
+    opcion_menu = st.radio(
+        "Módulos:",
+        [
+            "🏠 Inicio",
+            "🔄 Sincronizador VPS",
+            "✉️ Correos y Empleados",
+            "🗂️ Gestor de Catálogos",
+            "📄 Generar Responsivas / Desvincular Dispositivos",
+            "🔍 Consultar Responsivas",
+            "📞 Control de Líneas Telefónicas",
+            "📱💻 Inventario de Equipos",
+            "📊 Reportería y Métricas",
+        ],
+        label_visibility="collapsed"
+    )
 
 # ---------------------------------------------------------
-# ENRUTADOR DE MÓDULOS (El cerebro del menú)
+# ENRUTADOR DE MÓDULOS
 # ---------------------------------------------------------
 
 if opcion_menu == "🏠 Inicio":
     st.title("⚙️ AGROCISA_core")
     st.caption("Sistema Central de Infraestructura, Inventarios y Automatización de TI")
-
-    # Si tienes un archivo de imagen en la carpeta, lo cargas así:
-    # st.image("logo.png", width=280)
 
     st.markdown("---")
     st.markdown(f"### 👋 ¡Bienvenido de vuelta, **{st.session_state['usuario']}**!")
@@ -159,11 +225,10 @@ if opcion_menu == "🏠 Inicio":
 
     st.write("")
 
-    # Accesos rápidos visuales tipo Tarjeta
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        st.info("🔄 **Sincronizador VPS**\n\nGestiona los Colaboradores sincronizando con app.agrocisa.com.mx. para Altas/Bajas")
+        st.info("🔄 **Sincronizador VPS**\n\nGestiona los Colaboradores sincronizando con app.agrocisa.com.mx para Altas/Bajas.")
     
     with col2:
         st.info("📊 **Reportería & Drive**\n\nConsulta el inventario general, gráficas de distribución y sincroniza con Google Sheets.")
@@ -181,7 +246,7 @@ elif opcion_menu == "🔄 Sincronizador VPS":
 elif opcion_menu == "🗂️ Gestor de Catálogos":
     catalogos.render()
 
-elif opcion_menu == "📄 Generar Responsivas":
+elif opcion_menu == "📄 Generar Responsivas / Desvincular Dispositivos":
     responsivas.render()
 
 elif opcion_menu == "🔍 Consultar Responsivas":

@@ -454,6 +454,8 @@ def renderizar_plantilla(nombre_plantilla_env, contexto):
 def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, tab_sel):
     archivos = {}
     f_hoy = datetime.now()
+    fecha_str = f_hoy.strftime('%Y%m%d')
+    cod_emp_clean = str(emp_row['codigo_str']).zfill(5)
 
     ctx_base = {
         'fecha_entrega': format_fecha(f_hoy),
@@ -466,8 +468,10 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
     }
 
     if cel_sel:
+        folio_cel = f"RESP-CEL-{cod_emp_clean}-{fecha_str}"
         d = cel_sel['data']
         ctx = {**ctx_base, 
+            'folio': folio_cel,  # 👈 INYECTA {{folio}} AL WORD
             'equipo': d.get('equipo', ''), 'numero': str(d.get('num_edit', '') or ''),
             'imei': str(d.get('imei', '') or ''), 'numero_serie': str(d.get('numero_serie', '') or ''),
             'gb': str(d.get('gb', '') or ''), 'condicion': d.get('cond_nom', d.get('condicion', '')),
@@ -477,11 +481,13 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'precio_letras': precio_a_letras(d.get('precio'))
         }
         res = renderizar_plantilla("PLANTILLA_CELULAR", ctx)
-        if res: archivos[f"Responsiva_Celular_{emp_row['codigo_str']}.docx"] = res
+        if res: archivos[f"{folio_cel}_{emp_row['codigo_str']}.docx"] = res
 
     if lap_sel:
+        folio_lap = f"RESP-LAP-{cod_emp_clean}-{fecha_str}"
         d = lap_sel['data']
         ctx = {**ctx_base,
+            'folio': folio_lap,  # 👈 INYECTA {{folio}} AL WORD
             'marca': d.get('marca', ''), 'modelo': str(d.get('modelo', '') or ''),
             'numero_serie': d.get('numero_serie', ''), 'condicion_lap': d.get('cond_nom', d.get('condicion_lap', '')),
             'cargador': d.get('carg_nom', d.get('cargador', '')),
@@ -490,11 +496,13 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'precio_letras': precio_a_letras(d.get('precio'))
         }
         res = renderizar_plantilla("PLANTILLA_LAPTOP", ctx)
-        if res: archivos[f"Responsiva_Laptop_{emp_row['codigo_str']}.docx"] = res
+        if res: archivos[f"{folio_lap}_{emp_row['codigo_str']}.docx"] = res
 
     if cpu_sel:
+        folio_cpu = f"RESP-CPU-{cod_emp_clean}-{fecha_str}"
         d = cpu_sel['data']
         ctx = {**ctx_base,
+            'folio': folio_cpu,  # 👈 INYECTA {{folio}} AL WORD
             'hostname': str(d.get('hostname', '') or ''), 'procesador': str(d.get('procesador', '') or ''),
             'memoria_ram': d.get('memoria_ram', ''), 'tipo_hdd': d.get('tipo_hdd', ''),
             'almacenamiento': d.get('almacenamiento', ''), 'condicion': d.get('cond_nom', d.get('condicion', '')),
@@ -503,11 +511,13 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'precio_letras': precio_a_letras(d.get('precio'))
         }
         res = renderizar_plantilla("PLANTILLA_CPU", ctx)
-        if res: archivos[f"Responsiva_CPU_{emp_row['codigo_str']}.docx"] = res
+        if res: archivos[f"{folio_cpu}_{emp_row['codigo_str']}.docx"] = res
 
     if mon_sel:
+        folio_mon = f"RESP-MON-{cod_emp_clean}-{fecha_str}"
         d = mon_sel['data']
         ctx = {**ctx_base,
+            'folio': folio_mon,  # 👈 INYECTA {{folio}} AL WORD
             'marca': str(d.get('marca', '') or ''), 'modelo': str(d.get('modelo', '') or ''),
             'numero_serie': d.get('numero_serie', ''),
             'comentarios': d.get('com_edit', d.get('comentarios', '')),
@@ -515,11 +525,13 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'precio_letras': precio_a_letras(d.get('precio'))
         }
         res = renderizar_plantilla("PLANTILLA_MONITOR", ctx)
-        if res: archivos[f"Responsiva_Monitor_{emp_row['codigo_str']}.docx"] = res
+        if res: archivos[f"{folio_mon}_{emp_row['codigo_str']}.docx"] = res
 
     if tab_sel:
+        folio_tab = f"RESP-TAB-{cod_emp_clean}-{fecha_str}"
         d = tab_sel['data']
         ctx = {**ctx_base,
+            'folio': folio_tab,  # 👈 INYECTA {{folio}} AL WORD
             'marca': d.get('marca', ''), 'modelo': str(d.get('modelo', '') or ''),
             'imei': str(d.get('imei', '') or ''), 'numero_serie': d.get('numero_serie', ''),
             'condicion': d.get('cond_nom', d.get('condicion', '')), 'cargador': d.get('carg_nom', d.get('cargador', '')),
@@ -528,7 +540,7 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'precio_letras': precio_a_letras(d.get('precio'))
         }
         res = renderizar_plantilla("PLANTILLA_TABLET", ctx)
-        if res: archivos[f"Responsiva_Tablet_{emp_row['codigo_str']}.docx"] = res
+        if res: archivos[f"{folio_tab}_{emp_row['codigo_str']}.docx"] = res
 
     return archivos
 

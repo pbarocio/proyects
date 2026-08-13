@@ -182,6 +182,7 @@ def obtener_historial_completo_df():
 
 def generar_docx_reimpresion(row_data):
     ctx_base = {
+        'folio': limpiar_campo(row_data['folio']),  # 👈 AQUÍ SE AGREGA EL FOLIO
         'fecha_entrega': responsivas.format_fecha(row_data['fecha_entrega']),
         'empleado': limpiar_campo(row_data['colaborador']).title(),
         'sucursal': limpiar_campo(row_data['sucursal'], 'S/D'),
