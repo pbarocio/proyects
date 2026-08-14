@@ -67,7 +67,7 @@ def obtener_historial_completo_df():
             CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS colaborador,
             s.nombre_sucursal AS sucursal, d.nombre_departamento AS departamento, p.nombre_puesto AS puesto,
             ce.correo_gmail, ce.correo_corporativo,
-            rl.numero_serie AS id_equipo, '' AS numero_linea, CONCAT(il.marca, ' ', il.modelo, ' [', il.hostname, ']') AS equipo_descripcion, 0 AS precio,
+            rl.numero_serie AS id_equipo, '' AS numero_linea, CONCAT(il.marca, ' ', il.modelo, ' [', il.hostname, ']') AS equipo_descripcion, COALESCE(il.precio, 0) AS precio,
             il.numero_serie, '' AS gb, cond.condicion_opcion AS condicion,
             cg.cargador_opcion AS cargador, '' AS caja, il.comentarios,
             rl.id_status, CONCAT('RESP-LAP-', LPAD(rl.codigo_empleado, 5, '0'), '-', DATE_FORMAT(rl.fecha_entrega, '%Y%m%d')) AS folio

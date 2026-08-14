@@ -155,7 +155,7 @@ def obtener_equipos_disponibles():
             SELECT il.numero_serie, il.marca, il.modelo, il.hostname, il.observaciones, il.comentarios, 
                    il.id_condicion, con.condicion_opcion AS condicion_lap, 
                    il.id_cargador, car.cargador_opcion AS cargador, 
-                   il.id_estatus_laptops, 0 AS precio
+                   il.id_estatus_laptops, COALESCE(il.precio, 0) AS precio
             FROM inventario_laptops il
             LEFT JOIN condicion con ON il.id_condicion = con.id_condicion
             LEFT JOIN cargadores car ON il.id_cargador = car.id_cargador
