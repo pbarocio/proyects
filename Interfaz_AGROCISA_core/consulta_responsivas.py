@@ -35,7 +35,7 @@ def obtener_historial_completo_df():
             CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS colaborador,
             s.nombre_sucursal AS sucursal, d.nombre_departamento AS departamento, p.nombre_puesto AS puesto,
             ce.correo_gmail, ce.correo_corporativo,
-            rc.imei AS id_equipo, rc.numero AS numero_linea, m.marca_modelo AS equipo_descripcion, m.precio,
+            rc.imei AS id_equipo, rc.numero AS numero_linea, m.marca_modelo AS equipo_descripcion, COALESCE(m.precio, 0) AS precio,
             ic.numero_serie, lt.gb_promocion_2026 AS gb, cond.condicion_opcion AS condicion,
             cg.cargador_opcion AS cargador, cj.caja_opcion AS caja, ic.comentarios,
             rc.id_status, CONCAT('RESP-CEL-', LPAD(rc.codigo_empleado, 5, '0'), '-', DATE_FORMAT(rc.fecha_entrega, '%Y%m%d')) AS folio
@@ -182,7 +182,7 @@ def obtener_historial_completo_df():
 
 def generar_docx_reimpresion(row_data):
     ctx_base = {
-        'folio': limpiar_campo(row_data['folio']),  # 👈 AQUÍ SE AGREGA EL FOLIO
+        'folio': limpiar_campo(row_data['folio']),
         'fecha_entrega': responsivas.format_fecha(row_data['fecha_entrega']),
         'empleado': limpiar_campo(row_data['colaborador']).title(),
         'sucursal': limpiar_campo(row_data['sucursal'], 'S/D'),
@@ -307,8 +307,8 @@ def render_consulta():
         opts_folios = [f"{r['folio']} | {r['colaborador']} - {r['tipo']} ({r['equipo_descripcion']})" for _, r in df_filtrado.iterrows()]
         folio_sel_str = st.selectbox("Selecciona la carta responsiva a descargar:", opts_folios)
 
-        folio_codigo = folio_sel_str.split(" | ")[0]
-        row_sel = df_filtrado[df_filtrado["folio"] == folio_codigo].iloc[0]
+        idx_sel = opts_folios.index(folio_sel_str)
+        row_sel = df_filtrado.iloc[idx_sel]
 
         buffer_docx = generar_docx_reimpresion(row_sel)
 

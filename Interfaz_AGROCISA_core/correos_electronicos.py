@@ -56,6 +56,18 @@ def existe_correo_duplicado(direccion, id_correo_actual=None):
     except Exception:
         return False
 
+def existe_codigo_empleado(codigo):
+    try:
+        conn = obtener_conexion()
+        cursor = conn.cursor()
+        codigo_clean = str(codigo).strip()
+        cursor.execute("SELECT COUNT(*) FROM empleados WHERE TRIM(LEADING '0' FROM CAST(codigo AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))", (codigo_clean,))
+        cnt = cursor.fetchone()[0]
+        conn.close()
+        return cnt > 0
+    except Exception:
+        return False
+
 # ==============================================================================
 # OPERACIONES: CORREOS ELECTRÓNICOS
 # ==============================================================================
@@ -148,7 +160,7 @@ def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_e
         return False
 
 # ==============================================================================
-# OPERACIONES: EMPLEADOS
+# OPERACIONES: EMPLEADOS (Alta y Actualización)
 # ==============================================================================
 def obtener_empleados_completos_df():
     try:
@@ -174,12 +186,32 @@ def obtener_empleados_completos_df():
         conn.close()
         
         if not df.empty:
-            df["codigo_str"] = df["codigo"].astype(str).str.strip()
+            df["codigo_str"] = df["codigo"].astype(str).str.strip().str.zfill(5)
             df["estatus_empleado"] = df["id_estatus_empleado"].map(DICT_ESTATUS_EMP_REV).fillna("ACTIVO")
         return df
     except Exception as e:
         st.error(f"⚠️ Error al cargar empleados: {e}")
         return pd.DataFrame()
+
+def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
+    try:
+        conn = obtener_conexion()
+        cursor = conn.cursor()
+        codigo_clean = str(codigo).strip().zfill(5)
+
+        query = """
+            INSERT INTO empleados (codigo, nombre, apellido_paterno, apellido_materno, id_sucursal, id_departamento, id_puesto, id_estatus_empleado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(query, (codigo_clean, nombre.strip(), ap_pat.strip(), ap_mat.strip() if ap_mat else None,
+                              id_suc, id_dep, id_pue, id_estatus))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        st.error(f"⚠️ Error en la base de datos al guardar empleado: {e}")
+        return False
 
 def actualizar_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
     try:
@@ -210,7 +242,7 @@ def render():
     aplicar_estilos_pantalla()
     st.title("📧 Administración de Correos y Empleados")
 
-    tab_correos, tab_empleados = st.tabs(["📧 Gestión de Correos Electrónicos", "👤 Modificación de Empleados"])
+    tab_correos, tab_empleados = st.tabs(["📧 Gestión de Correos Electrónicos", "👤 Registro y Modificación de Empleados"])
 
     # --------------------------------------------------------------------------
     # TAB 1: CORREOS ELECTRÓNICOS (Alta y Edición)
@@ -222,7 +254,7 @@ def render():
         df_correos = obtener_correos_df()
 
         if df_emp.empty:
-            st.warning("⚠️ No hay empleados registrados para asociar correos.")
+            st.warning("⚠️ No hay empleados registrados para asociar correos. Da de alta uno en la pestaña de Empleados.")
             return
 
         c_accion, _ = st.columns([1, 2])
@@ -245,7 +277,7 @@ def render():
                 row_c = df_correos.iloc[idx_c]
 
                 id_correo_edit = row_c["id_correo"]
-                emp_codigo_def = str(row_c["codigo_empleado"]).strip()
+                emp_codigo_def = str(row_c["codigo_empleado"]).strip().zfill(5)
                 dir_correo_def = row_c["direccion_correo"]
                 pass_correo_def = row_c["contrasena"] or ""
                 tipo_id_def = row_c["id_tipo_correo"]
@@ -328,45 +360,62 @@ def render():
             st.caption(f"Mostrando **{len(df_filt)}** de **{len(df_correos)}** cuentas registradas.")
 
     # --------------------------------------------------------------------------
-    # TAB 2: EDICIÓN EXCLUSIVA DE EMPLEADOS
+    # TAB 2: ALTA Y MODIFICACIÓN DE EMPLEADOS
     # --------------------------------------------------------------------------
     with tab_empleados:
-        st.subheader("👤 Edición de Datos de Colaboradores Existentes")
+        st.subheader("👤 Gestión de Colaboradores")
 
         df_emp_comp = obtener_empleados_completos_df()
         dict_suc = obtener_catalogo_dict("sucursales", "id_sucursal", "nombre_sucursal")
         dict_dep = obtener_catalogo_dict("departamentos", "id_departamento", "nombre_departamento")
         dict_pue = obtener_catalogo_dict("puestos", "id_puesto", "nombre_puesto")
 
-        if df_emp_comp.empty:
-            st.warning("No hay colaboradores registrados en la base de datos.")
-            return
+        c_accion_e, _ = st.columns([1, 2])
+        modo_emp = c_accion_e.radio("Acción de Empleado:", ["➕ Registrar Nuevo Empleado", "✏️ Modificar Existente"], horizontal=True)
 
-        lista_e_opts = [f"{r['codigo_str']} - {r['nombre_completo']} ({r['sucursal']})" for _, r in df_emp_comp.iterrows()]
-        emp_edit_sel = st.selectbox("Selecciona el colaborador a modificar:", lista_e_opts)
-        idx_e = lista_e_opts.index(emp_edit_sel)
-        row_e = df_emp_comp.iloc[idx_e]
+        cod_def = ""
+        nom_def = ""
+        pat_def = ""
+        mat_def = ""
+        suc_id_def = list(dict_suc.values())[0] if dict_suc else 1
+        dep_id_def = list(dict_dep.values())[0] if dict_dep else 1
+        pue_id_def = list(dict_pue.values())[0] if dict_pue else 1
+        est_id_def = 1
 
-        cod_def = row_e["codigo_str"]
-        nom_def = row_e["nombre"]
-        pat_def = row_e["apellido_paterno"]
-        mat_def = row_e["apellido_materno"] or ""
-        suc_id_def = row_e["id_sucursal"]
-        dep_id_def = row_e["id_departamento"]
-        pue_id_def = row_e["id_puesto"]
-        est_id_def = row_e["id_estatus_empleado"]
+        if modo_emp == "✏️ Modificar Existente":
+            if df_emp_comp.empty:
+                st.info("No hay colaboradores registrados para modificar.")
+            else:
+                lista_e_opts = [f"{r['codigo_str']} - {r['nombre_completo']} ({r['sucursal']})" for _, r in df_emp_comp.iterrows()]
+                emp_edit_sel = st.selectbox("Selecciona el colaborador a modificar:", lista_e_opts)
+                idx_e = lista_e_opts.index(emp_edit_sel)
+                row_e = df_emp_comp.iloc[idx_e]
+
+                cod_def = row_e["codigo_str"]
+                nom_def = row_e["nombre"]
+                pat_def = row_e["apellido_paterno"]
+                mat_def = row_e["apellido_materno"] or ""
+                suc_id_def = row_e["id_sucursal"]
+                dep_id_def = row_e["id_departamento"]
+                pue_id_def = row_e["id_puesto"]
+                est_id_def = row_e["id_estatus_empleado"]
 
         st.divider()
 
         with st.form("form_empleado"):
             c1, c2, c3 = st.columns(3)
             with c1:
-                st.text_input("Código de Empleado (ID):", value=cod_def, disabled=True)
-                nom_in = st.text_input("Nombre(s):", value=nom_def)
+                if modo_emp == "➕ Registrar Nuevo Empleado":
+                    cod_in = st.text_input("Código de Empleado (ID)*:", placeholder="Ej. 00849 o 849")
+                else:
+                    st.text_input("Código de Empleado (ID):", value=cod_def, disabled=True)
+                    cod_in = cod_def
+                
+                nom_in = st.text_input("Nombre(s)*:", value=nom_def, placeholder="Ej. Juan Carlos")
 
             with c2:
-                pat_in = st.text_input("Apellido Paterno:", value=pat_def)
-                mat_in = st.text_input("Apellido Materno:", value=mat_def)
+                pat_in = st.text_input("Apellido Paterno*:", value=pat_def, placeholder="Ej. Pérez")
+                mat_in = st.text_input("Apellido Materno:", value=mat_def, placeholder="Ej. López (Opcional)")
 
             with c3:
                 idx_suc = list(dict_suc.values()).index(suc_id_def) if suc_id_def in dict_suc.values() else 0
@@ -381,29 +430,77 @@ def render():
                 idx_est_e = list(DICT_ESTATUS_EMP.values()).index(est_id_def) if est_id_def in DICT_ESTATUS_EMP.values() else 0
                 est_e_nom = st.selectbox("Estatus del Empleado:", list(DICT_ESTATUS_EMP.keys()), index=idx_est_e)
 
-            btn_guardar_emp = st.form_submit_button("💾 Actualizar Datos del Empleado", type="primary")
+            texto_boton = "💾 Guardar Nuevo Colaborador" if modo_emp == "➕ Registrar Nuevo Empleado" else "💾 Actualizar Datos del Empleado"
+            btn_guardar_emp = st.form_submit_button(texto_boton, type="primary")
 
             if btn_guardar_emp:
-                if not nom_in.strip() or not pat_in.strip():
+                if not cod_in.strip():
+                    st.warning("⚠️ El Código de Empleado es obligatorio.")
+                elif not nom_in.strip() or not pat_in.strip():
                     st.warning("⚠️ El Nombre y Apellido Paterno son obligatorios.")
+                elif modo_emp == "➕ Registrar Nuevo Empleado" and existe_codigo_empleado(cod_in):
+                    st.error(f"⛔ El código de empleado `{cod_in.strip()}` ya existe en la base de datos.")
                 else:
-                    if actualizar_empleado_bdd(
-                        codigo=cod_def,
-                        nombre=nom_in,
-                        ap_pat=pat_in,
-                        ap_mat=mat_in,
-                        id_suc=dict_suc[suc_nom],
-                        id_dep=dict_dep[dep_nom],
-                        id_pue=dict_pue[pue_nom],
-                        id_estatus=DICT_ESTATUS_EMP[est_e_nom]
-                    ):
-                        st.toast("¡Datos del colaborador actualizados en BDD!", icon="🎉")
+                    if modo_emp == "➕ Registrar Nuevo Empleado":
+                        exito = guardar_nuevo_empleado_bdd(
+                            codigo=cod_in,
+                            nombre=nom_in,
+                            ap_pat=pat_in,
+                            ap_mat=mat_in,
+                            id_suc=dict_suc[suc_nom],
+                            id_dep=dict_dep[dep_nom],
+                            id_pue=dict_pue[pue_nom],
+                            id_estatus=DICT_ESTATUS_EMP[est_e_nom]
+                        )
+                        msg_toast = "¡Nuevo colaborador registrado exitosamente!"
+                    else:
+                        exito = actualizar_empleado_bdd(
+                            codigo=cod_def,
+                            nombre=nom_in,
+                            ap_pat=pat_in,
+                            ap_mat=mat_in,
+                            id_suc=dict_suc[suc_nom],
+                            id_dep=dict_dep[dep_nom],
+                            id_pue=dict_pue[pue_nom],
+                            id_estatus=DICT_ESTATUS_EMP[est_e_nom]
+                        )
+                        msg_toast = "¡Datos del colaborador actualizados en BDD!"
+
+                    if exito:
+                        st.toast(msg_toast, icon="🎉")
                         st.rerun()
 
         st.divider()
         st.markdown("### 📋 Directorio General de Empleados")
-        st.dataframe(
-            df_emp_comp[["codigo_str", "nombre_completo", "sucursal", "departamento", "puesto", "estatus_empleado"]],
-            use_container_width=True,
-            hide_index=True
-        )
+        
+        if not df_emp_comp.empty:
+            f1, f2 = st.columns(2)
+            with f1:
+                txt_busq_emp = st.text_input("🔍 Buscar por Nombre, Código o Sucursal:", placeholder="Ej. Morelia, 00848, Abdiel")
+            with f2:
+                opts_est_emp = ["Todos"] + list(DICT_ESTATUS_EMP.keys())
+                sel_est_emp = st.selectbox("Filtrar por Estatus de Empleado:", opts_est_emp)
+
+            df_filt_emp = df_emp_comp.copy()
+            if sel_est_emp != "Todos":
+                df_filt_emp = df_filt_emp[df_filt_emp["estatus_empleado"] == sel_est_emp]
+
+            if txt_busq_emp.strip():
+                term_e = txt_busq_emp.strip().lower()
+                df_filt_emp = df_filt_emp[
+                    df_filt_emp["nombre_completo"].astype(str).str.lower().str.contains(term_e) |
+                    df_filt_emp["codigo_str"].astype(str).str.lower().str.contains(term_e) |
+                    df_filt_emp["sucursal"].astype(str).str.lower().str.contains(term_e) |
+                    df_filt_emp["departamento"].astype(str).str.lower().str.contains(term_e) |
+                    df_filt_emp["puesto"].astype(str).str.lower().str.contains(term_e)
+                ]
+
+            st.dataframe(
+                df_filt_emp[["codigo_str", "nombre_completo", "sucursal", "departamento", "puesto", "estatus_empleado"]],
+                use_container_width=True,
+                hide_index=True
+            )
+            st.caption(f"Mostrando **{len(df_filt_emp)}** de **{len(df_emp_comp)}** colaboradores.")
+
+# Alias para compatibilidad de invocación en app.py
+render_correos = render
