@@ -15,7 +15,6 @@ def aplicar_estilos_pantalla():
     """, unsafe_allow_html=True)
 
 def limpiar_str_null(val):
-    """Convierte valores vacíos o cadenas 'nan'/'none' en None real para SQL."""
     if val is None or pd.isna(val):
         return None
     val_clean = str(val).strip()
@@ -54,8 +53,11 @@ def obtener_celulares_df():
         query = """
             SELECT 
                 ic.imei, ic.numero AS numero_linea, m.marca_modelo, e_cel.estatus_celular AS estatus,
-                ic.id_estatus_celular, COALESCE(CONCAT(emp.nombre, ' ', emp.apellido_paterno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
-                suc.nombre_sucursal AS sucursal, c.condicion_opcion AS condicion, cg.cargador_opcion AS cargador,
+                ic.id_estatus_celular, COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
+                COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
+                COALESCE(dep.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
+                COALESCE(pue.nombre_puesto, 'SIN PUESTO') AS puesto,
+                c.condicion_opcion AS condicion, cg.cargador_opcion AS cargador,
                 cj.caja_opcion AS caja, ic.numero_serie, ic.mac_address, ic.observaciones, ic.comentarios,
                 ic.id_modelo, ic.id_condicion, ic.id_cargador, ic.id_caja
             FROM inventario_celulares ic
@@ -63,6 +65,8 @@ def obtener_celulares_df():
             LEFT JOIN estatus_celulares e_cel ON ic.id_estatus_celular = e_cel.id_estatus_celular
             LEFT JOIN empleados emp ON TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(emp.codigo AS CHAR))
             LEFT JOIN sucursales suc ON emp.id_sucursal = suc.id_sucursal
+            LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
+            LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
             LEFT JOIN condicion c ON ic.id_condicion = c.id_condicion
             LEFT JOIN cargadores cg ON ic.id_cargador = cg.id_cargador
             LEFT JOIN caja cj ON ic.id_caja = cj.id_caja
@@ -86,17 +90,9 @@ def guardar_celular(imei, serie, mac, numero, id_modelo, id_condicion, id_cargad
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            imei.strip(), 
-            serie.strip(), 
-            limpiar_str_null(mac), 
-            num_clean, 
-            id_modelo, 
-            id_condicion, 
-            id_cargador, 
-            id_caja, 
-            limpiar_str_null(observaciones), 
-            limpiar_str_null(comentarios), 
-            id_estatus
+            imei.strip(), serie.strip(), limpiar_str_null(mac), num_clean, 
+            id_modelo, id_condicion, id_cargador, id_caja, 
+            limpiar_str_null(observaciones), limpiar_str_null(comentarios), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -117,17 +113,8 @@ def actualizar_celular(imei, serie, mac, numero, id_modelo, id_condicion, id_car
             WHERE imei = %s
         """
         cursor.execute(query, (
-            serie.strip(), 
-            limpiar_str_null(mac), 
-            num_clean, 
-            id_modelo, 
-            id_condicion, 
-            id_cargador, 
-            id_caja, 
-            id_estatus, 
-            limpiar_str_null(observaciones), 
-            limpiar_str_null(comentarios), 
-            imei
+            serie.strip(), limpiar_str_null(mac), num_clean, id_modelo, id_condicion, 
+            id_cargador, id_caja, id_estatus, limpiar_str_null(observaciones), limpiar_str_null(comentarios), imei
         ))
         conn.commit()
         conn.close()
@@ -137,7 +124,7 @@ def actualizar_celular(imei, serie, mac, numero, id_modelo, id_condicion, id_car
         return False
 
 # ==============================================================================
-# 2. LAPTOPS (CON CAMPOS SPECCY, MOTHERBOARD Y PRECIO)
+# 2. LAPTOPS
 # ==============================================================================
 def obtener_laptops_df():
     try:
@@ -148,14 +135,19 @@ def obtener_laptops_df():
                 il.motherboard, ht.hdd_opcion AS tipo_almacenamiento, il.almacenamiento, il.datos_almacenamiento, il.sistema_operativo,
                 il.mac_address_lan, il.mac_address_wlan, il.precio,
                 el.estatus_laptop AS estatus, il.id_estatus_laptops,
-                COALESCE(CONCAT(emp.nombre, ' ', emp.apellido_paterno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
-                suc.nombre_sucursal AS sucursal, c.condicion_opcion AS condicion, cg.cargador_opcion AS cargador,
+                COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
+                COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
+                COALESCE(dep.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
+                COALESCE(pue.nombre_puesto, 'SIN PUESTO') AS puesto,
+                c.condicion_opcion AS condicion, cg.cargador_opcion AS cargador,
                 il.observaciones, il.comentarios, il.id_hdd_tipo, il.id_condicion, il.id_cargador, il.id_renovacion
             FROM inventario_laptops il
             LEFT JOIN estatus_laptops el ON il.id_estatus_laptops = el.id_estatus_laptops
             LEFT JOIN hdd_tipo ht ON il.id_hdd_tipo = ht.id_hdd_tipo
             LEFT JOIN empleados emp ON TRIM(LEADING '0' FROM CAST(il.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(emp.codigo AS CHAR))
             LEFT JOIN sucursales suc ON emp.id_sucursal = suc.id_sucursal
+            LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
+            LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
             LEFT JOIN condicion c ON il.id_condicion = c.id_condicion
             LEFT JOIN cargadores cg ON il.id_cargador = cg.id_cargador
             ORDER BY il.numero_serie DESC
@@ -177,27 +169,10 @@ def guardar_laptop(serie, hostname, marca, modelo, proc, ram, datos_ram, mobo, i
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            serie.strip(), 
-            hostname.strip(), 
-            marca.strip(), 
-            modelo.strip(), 
-            proc.strip(), 
-            ram.strip(), 
-            limpiar_str_null(datos_ram), 
-            limpiar_str_null(mobo), 
-            id_hdd_tipo, 
-            almac.strip(), 
-            limpiar_str_null(datos_almac), 
-            so.strip(), 
-            limpiar_str_null(mac_lan), 
-            limpiar_str_null(mac_wlan), 
-            precio, 
-            id_condicion, 
-            id_cargador, 
-            id_renovacion, 
-            limpiar_str_null(obs), 
-            limpiar_str_null(com), 
-            id_estatus
+            serie.strip(), hostname.strip(), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
+            limpiar_str_null(datos_ram), limpiar_str_null(mobo), id_hdd_tipo, almac.strip(), 
+            limpiar_str_null(datos_almac), so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), 
+            precio, id_condicion, id_cargador, id_renovacion, limpiar_str_null(obs), limpiar_str_null(com), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -218,27 +193,10 @@ def actualizar_laptop(serie, hostname, marca, modelo, proc, ram, datos_ram, mobo
             WHERE numero_serie=%s
         """
         cursor.execute(query, (
-            hostname.strip(), 
-            marca.strip(), 
-            modelo.strip(), 
-            proc.strip(), 
-            ram.strip(), 
-            limpiar_str_null(datos_ram), 
-            limpiar_str_null(mobo), 
-            id_hdd_tipo, 
-            almac.strip(), 
-            limpiar_str_null(datos_almac), 
-            so.strip(), 
-            limpiar_str_null(mac_lan), 
-            limpiar_str_null(mac_wlan), 
-            precio, 
-            id_condicion, 
-            id_cargador, 
-            id_renovacion, 
-            id_estatus, 
-            limpiar_str_null(obs), 
-            limpiar_str_null(com), 
-            serie
+            hostname.strip(), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
+            limpiar_str_null(datos_ram), limpiar_str_null(mobo), id_hdd_tipo, almac.strip(), 
+            limpiar_str_null(datos_almac), so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), 
+            precio, id_condicion, id_cargador, id_renovacion, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), serie
         ))
         conn.commit()
         conn.close()
@@ -248,7 +206,7 @@ def actualizar_laptop(serie, hostname, marca, modelo, proc, ram, datos_ram, mobo
         return False
 
 # ==============================================================================
-# 3. CPUS (CON CAMPOS SPECCY)
+# 3. CPUS
 # ==============================================================================
 def obtener_cpus_df():
     try:
@@ -258,14 +216,19 @@ def obtener_cpus_df():
                 ic.hostname, ic.numero_serie, ic.marca, ic.modelo, ic.procesador, ic.memoria_ram, ic.datos_memoria_ram,
                 ht.hdd_opcion AS tipo_almacenamiento, ic.almacenamiento, ic.datos_almacenamiento, ic.sistema_operativo,
                 ec.estatus_cpu AS estatus, ic.id_estatus_cpu,
-                COALESCE(CONCAT(emp.nombre, ' ', emp.apellido_paterno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
-                suc.nombre_sucursal AS sucursal, c.condicion_opcion AS condicion, ic.observaciones, ic.comentarios,
+                COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
+                COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
+                COALESCE(dep.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
+                COALESCE(pue.nombre_puesto, 'SIN PUESTO') AS puesto,
+                c.condicion_opcion AS condicion, ic.observaciones, ic.comentarios,
                 ic.mac_address_lan, ic.mac_address_wlan, ic.id_hdd_tipo, ic.id_condicion
             FROM inventario_cpu ic
             LEFT JOIN estatus_cpu ec ON ic.id_estatus_cpu = ec.id_estatus_cpu
             LEFT JOIN hdd_tipo ht ON ic.id_hdd_tipo = ht.id_hdd_tipo
             LEFT JOIN empleados emp ON TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(emp.codigo AS CHAR))
             LEFT JOIN sucursales suc ON emp.id_sucursal = suc.id_sucursal
+            LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
+            LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
             LEFT JOIN condicion c ON ic.id_condicion = c.id_condicion
             ORDER BY ic.hostname DESC
         """
@@ -286,23 +249,10 @@ def guardar_cpu(hostname, serie, marca, modelo, proc, ram, datos_ram, id_hdd_tip
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            hostname.strip(), 
-            serie.strip(), 
-            marca.strip(), 
-            modelo.strip(), 
-            proc.strip(), 
-            ram.strip(), 
-            limpiar_str_null(datos_ram), 
-            id_hdd_tipo, 
-            almac.strip(), 
-            limpiar_str_null(datos_almac), 
-            so.strip(), 
-            limpiar_str_null(mac_lan), 
-            limpiar_str_null(mac_wlan), 
-            id_condicion, 
-            limpiar_str_null(obs), 
-            limpiar_str_null(com), 
-            id_estatus
+            hostname.strip(), serie.strip(), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
+            limpiar_str_null(datos_ram), id_hdd_tipo, almac.strip(), limpiar_str_null(datos_almac), 
+            so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), id_condicion, 
+            limpiar_str_null(obs), limpiar_str_null(com), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -323,23 +273,10 @@ def actualizar_cpu(hostname, serie, marca, modelo, proc, ram, datos_ram, id_hdd_
             WHERE hostname=%s
         """
         cursor.execute(query, (
-            serie.strip(), 
-            marca.strip(), 
-            modelo.strip(), 
-            proc.strip(), 
-            ram.strip(), 
-            limpiar_str_null(datos_ram), 
-            id_hdd_tipo, 
-            almac.strip(), 
-            limpiar_str_null(datos_almac), 
-            so.strip(), 
-            limpiar_str_null(mac_lan), 
-            limpiar_str_null(mac_wlan), 
-            id_condicion, 
-            id_estatus, 
-            limpiar_str_null(obs), 
-            limpiar_str_null(com), 
-            hostname
+            serie.strip(), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
+            limpiar_str_null(datos_ram), id_hdd_tipo, almac.strip(), limpiar_str_null(datos_almac), 
+            so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), id_condicion, 
+            id_estatus, limpiar_str_null(obs), limpiar_str_null(com), hostname
         ))
         conn.commit()
         conn.close()
@@ -358,12 +295,17 @@ def obtener_monitores_df():
             SELECT 
                 im.numero_serie, im.hostname, im.marca, im.modelo, im.resolucion,
                 em.estatus_monitor AS estatus, im.id_estatus_monitor,
-                COALESCE(CONCAT(emp.nombre, ' ', emp.apellido_paterno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
-                suc.nombre_sucursal AS sucursal, c.condicion_opcion AS condicion, im.observaciones, im.comentarios, im.id_condicion
+                COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
+                COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
+                COALESCE(dep.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
+                COALESCE(pue.nombre_puesto, 'SIN PUESTO') AS puesto,
+                c.condicion_opcion AS condicion, im.observaciones, im.comentarios, im.id_condicion
             FROM inventario_monitores im
             LEFT JOIN estatus_monitores em ON im.id_estatus_monitor = em.id_estatus_monitor
             LEFT JOIN empleados emp ON TRIM(LEADING '0' FROM CAST(im.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(emp.codigo AS CHAR))
             LEFT JOIN sucursales suc ON emp.id_sucursal = suc.id_sucursal
+            LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
+            LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
             LEFT JOIN condicion c ON im.id_condicion = c.id_condicion
             ORDER BY im.numero_serie DESC
         """
@@ -384,15 +326,8 @@ def guardar_monitor(serie, hostname, marca, modelo, resolucion, id_condicion, ob
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            serie.strip(), 
-            limpiar_str_null(hostname), 
-            marca.strip(), 
-            modelo.strip(), 
-            limpiar_str_null(resolucion), 
-            id_condicion, 
-            limpiar_str_null(obs), 
-            limpiar_str_null(com), 
-            id_estatus
+            serie.strip(), limpiar_str_null(hostname), marca.strip(), modelo.strip(), 
+            limpiar_str_null(resolucion), id_condicion, limpiar_str_null(obs), limpiar_str_null(com), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -411,15 +346,8 @@ def actualizar_monitor(serie, hostname, marca, modelo, resolucion, id_condicion,
             WHERE numero_serie=%s
         """
         cursor.execute(query, (
-            limpiar_str_null(hostname), 
-            marca.strip(), 
-            modelo.strip(), 
-            limpiar_str_null(resolucion), 
-            id_condicion, 
-            id_estatus, 
-            limpiar_str_null(obs), 
-            limpiar_str_null(com), 
-            serie
+            limpiar_str_null(hostname), marca.strip(), modelo.strip(), limpiar_str_null(resolucion), 
+            id_condicion, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), serie
         ))
         conn.commit()
         conn.close()
@@ -438,13 +366,18 @@ def obtener_tablets_df():
             SELECT 
                 it.numero_serie, it.imei, it.marca, it.modelo, it.mac_address,
                 et.estatus_tablet AS estatus, it.id_estatus_tablet,
-                COALESCE(CONCAT(emp.nombre, ' ', emp.apellido_paterno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
-                suc.nombre_sucursal AS sucursal, c.condicion_opcion AS condicion, cg.cargador_opcion AS cargador,
+                COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
+                COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
+                COALESCE(dep.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
+                COALESCE(pue.nombre_puesto, 'SIN PUESTO') AS puesto,
+                c.condicion_opcion AS condicion, cg.cargador_opcion AS cargador,
                 it.observaciones, it.comentarios, it.id_condicion, it.id_cargador
             FROM inventario_tablets it
             LEFT JOIN estatus_tablets et ON it.id_estatus_tablet = et.id_estatus_tablet
             LEFT JOIN empleados emp ON TRIM(LEADING '0' FROM CAST(it.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(emp.codigo AS CHAR))
             LEFT JOIN sucursales suc ON emp.id_sucursal = suc.id_sucursal
+            LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
+            LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
             LEFT JOIN condicion c ON it.id_condicion = c.id_condicion
             LEFT JOIN cargadores cg ON it.id_cargador = cg.id_cargador
             ORDER BY it.numero_serie DESC
@@ -466,16 +399,8 @@ def guardar_tablet(serie, imei, marca, modelo, mac, id_condicion, id_cargador, o
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            serie.strip(), 
-            limpiar_str_null(imei), 
-            marca.strip(), 
-            modelo.strip(), 
-            limpiar_str_null(mac), 
-            id_condicion, 
-            id_cargador, 
-            limpiar_str_null(obs), 
-            limpiar_str_null(com), 
-            id_estatus
+            serie.strip(), limpiar_str_null(imei), marca.strip(), modelo.strip(), 
+            limpiar_str_null(mac), id_condicion, id_cargador, limpiar_str_null(obs), limpiar_str_null(com), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -494,16 +419,8 @@ def actualizar_tablet(serie, imei, marca, modelo, mac, id_condicion, id_cargador
             WHERE numero_serie=%s
         """
         cursor.execute(query, (
-            limpiar_str_null(imei), 
-            marca.strip(), 
-            modelo.strip(), 
-            limpiar_str_null(mac), 
-            id_condicion, 
-            id_cargador, 
-            id_estatus, 
-            limpiar_str_null(obs), 
-            limpiar_str_null(com), 
-            serie
+            limpiar_str_null(imei), marca.strip(), modelo.strip(), limpiar_str_null(mac), 
+            id_condicion, id_cargador, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), serie
         ))
         conn.commit()
         conn.close()
@@ -583,6 +500,49 @@ def actualizar_dispositivo_red(id_dispositivo, id_sucursal, tipo, marca, modelo,
         return False
 
 # ==============================================================================
+# AYUDANTE DE FILTRADO DINÁMICO
+# ==============================================================================
+def render_filtros_inventario(df_origen, key_prefix):
+    c1, c2 = st.columns([2, 1])
+    with c1:
+        txt_busq = st.text_input("🔍 Buscar texto libre:", placeholder="Ej. Juan, Morelia, 35077, HP...", key=f"txt_{key_prefix}")
+    with c2:
+        opts_est = ["Todos"] + sorted(list(df_origen["estatus"].dropna().unique()))
+        est_sel = st.selectbox("Estatus:", opts_est, key=f"est_{key_prefix}")
+
+    f1, f2, f3 = st.columns(3)
+    with f1:
+        opts_suc = ["Todas"] + sorted(list(df_origen["sucursal"].dropna().unique()))
+        suc_sel = st.selectbox("Sucursal:", opts_suc, key=f"suc_{key_prefix}")
+    with f2:
+        opts_dep = ["Todos"] + sorted(list(df_origen["departamento"].dropna().unique()))
+        dep_sel = st.selectbox("Departamento:", opts_dep, key=f"dep_{key_prefix}")
+    with f3:
+        opts_pue = ["Todos"] + sorted(list(df_origen["puesto"].dropna().unique()))
+        pue_sel = st.selectbox("Puesto:", opts_pue, key=f"pue_{key_prefix}")
+
+    df_filt = df_origen.copy()
+
+    if est_sel != "Todos":
+        df_filt = df_filt[df_filt["estatus"] == est_sel]
+    if suc_sel != "Todas":
+        df_filt = df_filt[df_filt["sucursal"] == suc_sel]
+    if dep_sel != "Todos":
+        df_filt = df_filt[df_filt["departamento"] == dep_sel]
+    if pue_sel != "Todos":
+        df_filt = df_filt[df_filt["puesto"] == pue_sel]
+
+    if txt_busq.strip():
+        term = txt_busq.strip().lower()
+        cols_a_buscar = [c for c in df_filt.columns if df_filt[c].dtype == object]
+        mascara = pd.Series(False, index=df_filt.index)
+        for col in cols_a_buscar:
+            mascara |= df_filt[col].astype(str).str.lower().str.contains(term, na=False)
+        df_filt = df_filt[mascara]
+
+    return df_filt
+
+# ==============================================================================
 # RENDER PRINCIPAL
 # ==============================================================================
 def render():
@@ -613,28 +573,8 @@ def render():
         t1, t2, t3 = st.tabs(["📋 Consulta General", "➕ Registrar Nuevo", "✏️ Editar / Modificar"])
         with t1:
             if not df_cel.empty:
-                c_f1, c_f2 = st.columns(2)
-                with c_f1:
-                    txt_cel = st.text_input("🔍 Buscar en Celulares:", placeholder="Ej. Iphone, 35077..., Juan, La Barca", key="txt_f_cel")
-                with c_f2:
-                    opts_est_cel = ["Todos"] + list(dict_est.keys())
-                    est_sel_cel = st.selectbox("Filtrar por Estatus:", opts_est_cel, key="est_f_cel")
-
-                df_filt_cel = df_cel.copy()
-                if est_sel_cel != "Todos":
-                    df_filt_cel = df_filt_cel[df_filt_cel["estatus"] == est_sel_cel]
-
-                if txt_cel.strip():
-                    term = txt_cel.strip().lower()
-                    df_filt_cel = df_filt_cel[
-                        df_filt_cel["imei"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cel["numero_linea"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cel["marca_modelo"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cel["asignado_a"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cel["sucursal"].astype(str).str.lower().str.contains(term)
-                    ]
-
-                df_view = df_filt_cel[["imei", "numero_linea", "marca_modelo", "estatus", "asignado_a", "sucursal", "observaciones", "comentarios"]]
+                df_filt_cel = render_filtros_inventario(df_cel, "cel_cg")
+                df_view = df_filt_cel[["imei", "numero_linea", "marca_modelo", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_inf, c_btn = st.columns([3, 1])
@@ -668,24 +608,7 @@ def render():
         with t3:
             if not df_cel.empty:
                 st.markdown("### 🔍 Filtrar Celular a Modificar")
-                f1, f2 = st.columns(2)
-                with f1:
-                    busq_ed_cel = st.text_input("Buscar por IMEI, Modelo o Asignado:", placeholder="Ej. 35077..., Iphone, Juan", key="busq_ed_cel")
-                with f2:
-                    opts_ed_est_cel = ["Todos"] + list(dict_est.keys())
-                    est_ed_sel_cel = st.selectbox("Filtrar por Estatus:", opts_ed_est_cel, key="est_ed_cel")
-
-                df_ed_cel = df_cel.copy()
-                if est_ed_sel_cel != "Todos":
-                    df_ed_cel = df_ed_cel[df_ed_cel["estatus"] == est_ed_sel_cel]
-
-                if busq_ed_cel.strip():
-                    term_ed = busq_ed_cel.strip().lower()
-                    df_ed_cel = df_ed_cel[
-                        df_ed_cel["imei"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_cel["marca_modelo"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_cel["asignado_a"].astype(str).str.lower().str.contains(term_ed)
-                    ]
+                df_ed_cel = render_filtros_inventario(df_cel, "cel_ed")
 
                 if df_ed_cel.empty:
                     st.warning("No se encontraron celulares con los filtros seleccionados.")
@@ -713,7 +636,7 @@ def render():
                                 notificar_exito(f"¡Celular IMEI {imei_ed} actualizado correctamente!!")
 
     # --------------------------------------------------------------------------
-    # 2. LAPTOPS (FORMULARIO CON CAMPOS Y AUDITORÍA SPECCY)
+    # 2. LAPTOPS
     # --------------------------------------------------------------------------
     with tab_lap:
         df_lap = obtener_laptops_df()
@@ -721,29 +644,8 @@ def render():
         t1, t2, t3 = st.tabs(["📋 Consulta General", "➕ Registrar Nuevo", "✏️ Editar / Modificar"])
         with t1:
             if not df_lap.empty:
-                c_f1, c_f2 = st.columns(2)
-                with c_f1:
-                    txt_lap = st.text_input("🔍 Buscar en Laptops:", placeholder="Ej. Dell, Lenovo, Host, Juan, La Barca", key="txt_f_lap")
-                with c_f2:
-                    opts_est_lap = ["Todos"] + list(dict_est_lap.keys())
-                    est_sel_lap = st.selectbox("Filtrar por Estatus:", opts_est_lap, key="est_f_lap")
-
-                df_filt_lap = df_lap.copy()
-                if est_sel_lap != "Todos":
-                    df_filt_lap = df_filt_lap[df_filt_lap["estatus"] == est_sel_lap]
-
-                if txt_lap.strip():
-                    term = txt_lap.strip().lower()
-                    df_filt_lap = df_filt_lap[
-                        df_filt_lap["numero_serie"].astype(str).str.lower().str.contains(term) |
-                        df_filt_lap["hostname"].astype(str).str.lower().str.contains(term) |
-                        df_filt_lap["marca"].astype(str).str.lower().str.contains(term) |
-                        df_filt_lap["modelo"].astype(str).str.lower().str.contains(term) |
-                        df_filt_lap["asignado_a"].astype(str).str.lower().str.contains(term) |
-                        df_filt_lap["sucursal"].astype(str).str.lower().str.contains(term)
-                    ]
-
-                df_view = df_filt_lap[["numero_serie", "hostname", "marca", "modelo", "procesador", "memoria_ram", "datos_memoria_ram", "motherboard", "tipo_almacenamiento", "almacenamiento", "datos_almacenamiento", "sistema_operativo", "mac_address_lan", "mac_address_wlan", "precio", "estatus", "asignado_a", "sucursal", "observaciones", "comentarios"]]
+                df_filt_lap = render_filtros_inventario(df_lap, "lap_cg")
+                df_view = df_filt_lap[["numero_serie", "hostname", "marca", "modelo", "procesador", "memoria_ram", "datos_memoria_ram", "motherboard", "tipo_almacenamiento", "almacenamiento", "datos_almacenamiento", "sistema_operativo", "mac_address_lan", "mac_address_wlan", "precio", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_inf, c_btn = st.columns([3, 1])
@@ -791,26 +693,7 @@ def render():
         with t3:
             if not df_lap.empty:
                 st.markdown("### 🔍 Filtrar Laptop a Modificar")
-                f1, f2 = st.columns(2)
-                with f1:
-                    busq_ed_lap = st.text_input("Buscar por Hostname, Serie, Modelo o Asignado:", placeholder="Ej. VENTAS-MORELIA, Dell, Juan", key="busq_ed_lap")
-                with f2:
-                    opts_ed_est_lap = ["Todos"] + list(dict_est_lap.keys())
-                    est_ed_sel_lap = st.selectbox("Filtrar por Estatus:", opts_ed_est_lap, key="est_ed_lap")
-
-                df_ed_lap = df_lap.copy()
-                if est_ed_sel_lap != "Todos":
-                    df_ed_lap = df_ed_lap[df_ed_lap["estatus"] == est_ed_sel_lap]
-
-                if busq_ed_lap.strip():
-                    term_ed = busq_ed_lap.strip().lower()
-                    df_ed_lap = df_ed_lap[
-                        df_ed_lap["numero_serie"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_lap["hostname"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_lap["marca"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_lap["modelo"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_lap["asignado_a"].astype(str).str.lower().str.contains(term_ed)
-                    ]
+                df_ed_lap = render_filtros_inventario(df_lap, "lap_ed")
 
                 if df_ed_lap.empty:
                     st.warning("No se encontraron laptops con los filtros seleccionados.")
@@ -859,29 +742,8 @@ def render():
         t1, t2, t3 = st.tabs(["📋 Consulta General", "➕ Registrar Nuevo", "✏️ Editar / Modificar"])
         with t1:
             if not df_cpu.empty:
-                c_f1, c_f2 = st.columns(2)
-                with c_f1:
-                    txt_cpu = st.text_input("🔍 Buscar en CPUs:", placeholder="Ej. Hostname, Serie, Juan, Sahuayo", key="txt_f_cpu")
-                with c_f2:
-                    opts_est_cpu = ["Todos"] + list(dict_est_cpu.keys())
-                    est_sel_cpu = st.selectbox("Filtrar por Estatus:", opts_est_cpu, key="est_f_cpu")
-
-                df_filt_cpu = df_cpu.copy()
-                if est_sel_cpu != "Todos":
-                    df_filt_cpu = df_filt_cpu[df_filt_cpu["estatus"] == est_sel_cpu]
-
-                if txt_cpu.strip():
-                    term = txt_cpu.strip().lower()
-                    df_filt_cpu = df_filt_cpu[
-                        df_filt_cpu["hostname"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cpu["numero_serie"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cpu["marca"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cpu["modelo"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cpu["asignado_a"].astype(str).str.lower().str.contains(term) |
-                        df_filt_cpu["sucursal"].astype(str).str.lower().str.contains(term)
-                    ]
-
-                df_view = df_filt_cpu[["hostname", "numero_serie", "marca", "modelo", "procesador", "memoria_ram", "datos_memoria_ram", "tipo_almacenamiento", "almacenamiento", "datos_almacenamiento", "sistema_operativo", "mac_address_lan", "mac_address_wlan", "estatus", "asignado_a", "sucursal", "observaciones", "comentarios"]]
+                df_filt_cpu = render_filtros_inventario(df_cpu, "cpu_cg")
+                df_view = df_filt_cpu[["hostname", "numero_serie", "marca", "modelo", "procesador", "memoria_ram", "datos_memoria_ram", "tipo_almacenamiento", "almacenamiento", "datos_almacenamiento", "sistema_operativo", "mac_address_lan", "mac_address_wlan", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_inf, c_btn = st.columns([3, 1])
@@ -921,26 +783,7 @@ def render():
         with t3:
             if not df_cpu.empty:
                 st.markdown("### 🔍 Filtrar CPU a Modificar")
-                f1, f2 = st.columns(2)
-                with f1:
-                    busq_ed_cpu = st.text_input("Buscar por Hostname, Serie, Modelo o Asignado:", placeholder="Ej. CPU-RECEPCION, HP, Juan", key="busq_ed_cpu")
-                with f2:
-                    opts_ed_est_cpu = ["Todos"] + list(dict_est_cpu.keys())
-                    est_ed_sel_cpu = st.selectbox("Filtrar por Estatus:", opts_ed_est_cpu, key="est_ed_cpu")
-
-                df_ed_cpu = df_cpu.copy()
-                if est_ed_sel_cpu != "Todos":
-                    df_ed_cpu = df_ed_cpu[df_ed_cpu["estatus"] == est_ed_sel_cpu]
-
-                if busq_ed_cpu.strip():
-                    term_ed = busq_ed_cpu.strip().lower()
-                    df_ed_cpu = df_ed_cpu[
-                        df_ed_cpu["hostname"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_cpu["numero_serie"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_cpu["marca"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_cpu["modelo"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_cpu["asignado_a"].astype(str).str.lower().str.contains(term_ed)
-                    ]
+                df_ed_cpu = render_filtros_inventario(df_cpu, "cpu_ed")
 
                 if df_ed_cpu.empty:
                     st.warning("No se encontraron CPUs con los filtros seleccionados.")
@@ -983,29 +826,8 @@ def render():
         t1, t2, t3 = st.tabs(["📋 Consulta General", "➕ Registrar Nuevo", "✏️ Editar / Modificar"])
         with t1:
             if not df_mon.empty:
-                c_f1, c_f2 = st.columns(2)
-                with c_f1:
-                    txt_mon = st.text_input("🔍 Buscar en Monitores:", placeholder="Ej. LG, HP, Serie, Host, Juan", key="txt_f_mon")
-                with c_f2:
-                    opts_est_mon = ["Todos"] + list(dict_est_mon.keys())
-                    est_sel_mon = st.selectbox("Filtrar por Estatus:", opts_est_mon, key="est_f_mon")
-
-                df_filt_mon = df_mon.copy()
-                if est_sel_mon != "Todos":
-                    df_filt_mon = df_filt_mon[df_filt_mon["estatus"] == est_sel_mon]
-
-                if txt_mon.strip():
-                    term = txt_mon.strip().lower()
-                    df_filt_mon = df_filt_mon[
-                        df_filt_mon["numero_serie"].astype(str).str.lower().str.contains(term) |
-                        df_filt_mon["hostname"].astype(str).str.lower().str.contains(term) |
-                        df_filt_mon["marca"].astype(str).str.lower().str.contains(term) |
-                        df_filt_mon["modelo"].astype(str).str.lower().str.contains(term) |
-                        df_filt_mon["asignado_a"].astype(str).str.lower().str.contains(term) |
-                        df_filt_mon["sucursal"].astype(str).str.lower().str.contains(term)
-                    ]
-
-                df_view = df_filt_mon[["numero_serie", "hostname", "marca", "modelo", "resolucion", "estatus", "asignado_a", "sucursal", "observaciones", "comentarios"]]
+                df_filt_mon = render_filtros_inventario(df_mon, "mon_cg")
+                df_view = df_filt_mon[["numero_serie", "hostname", "marca", "modelo", "resolucion", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_inf, c_btn = st.columns([3, 1])
@@ -1037,26 +859,7 @@ def render():
         with t3:
             if not df_mon.empty:
                 st.markdown("### 🔍 Filtrar Monitor a Modificar")
-                f1, f2 = st.columns(2)
-                with f1:
-                    busq_ed_mon = st.text_input("Buscar por Serie, Marca, Modelo o Asignado:", placeholder="Ej. LG, HP, Juan", key="busq_ed_mon")
-                with f2:
-                    opts_ed_est_mon = ["Todos"] + list(dict_est_mon.keys())
-                    est_ed_sel_mon = st.selectbox("Filtrar por Estatus:", opts_ed_est_mon, key="est_ed_mon")
-
-                df_ed_mon = df_mon.copy()
-                if est_ed_sel_mon != "Todos":
-                    df_ed_mon = df_ed_mon[df_ed_mon["estatus"] == est_ed_sel_mon]
-
-                if busq_ed_mon.strip():
-                    term_ed = busq_ed_mon.strip().lower()
-                    df_ed_mon = df_ed_mon[
-                        df_ed_mon["numero_serie"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_mon["hostname"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_mon["marca"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_mon["modelo"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_mon["asignado_a"].astype(str).str.lower().str.contains(term_ed)
-                    ]
+                df_ed_mon = render_filtros_inventario(df_mon, "mon_ed")
 
                 if df_ed_mon.empty:
                     st.warning("No se encontraron monitores con los filtros seleccionados.")
@@ -1090,29 +893,8 @@ def render():
         t1, t2, t3 = st.tabs(["📋 Consulta General", "➕ Registrar Nuevo", "✏️ Editar / Modificar"])
         with t1:
             if not df_tab.empty:
-                c_f1, c_f2 = st.columns(2)
-                with c_f1:
-                    txt_tab = st.text_input("🔍 Buscar en Tablets:", placeholder="Ej. Samsung, Serie, IMEI, Juan", key="txt_f_tab")
-                with c_f2:
-                    opts_est_tab = ["Todos"] + list(dict_est_tab.keys())
-                    est_sel_tab = st.selectbox("Filtrar por Estatus:", opts_est_tab, key="est_f_tab")
-
-                df_filt_tab = df_tab.copy()
-                if est_sel_tab != "Todos":
-                    df_filt_tab = df_filt_tab[df_filt_tab["estatus"] == est_sel_tab]
-
-                if txt_tab.strip():
-                    term = txt_tab.strip().lower()
-                    df_filt_tab = df_filt_tab[
-                        df_filt_tab["numero_serie"].astype(str).str.lower().str.contains(term) |
-                        df_filt_tab["imei"].astype(str).str.lower().str.contains(term) |
-                        df_filt_tab["marca"].astype(str).str.lower().str.contains(term) |
-                        df_filt_tab["modelo"].astype(str).str.lower().str.contains(term) |
-                        df_filt_tab["asignado_a"].astype(str).str.lower().str.contains(term) |
-                        df_filt_tab["sucursal"].astype(str).str.lower().str.contains(term)
-                    ]
-
-                df_view = df_filt_tab[["numero_serie", "imei", "marca", "modelo", "mac_address", "estatus", "asignado_a", "sucursal", "observaciones", "comentarios"]]
+                df_filt_tab = render_filtros_inventario(df_tab, "tab_cg")
+                df_view = df_filt_tab[["numero_serie", "imei", "marca", "modelo", "mac_address", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_inf, c_btn = st.columns([3, 1])
@@ -1145,26 +927,7 @@ def render():
         with t3:
             if not df_tab.empty:
                 st.markdown("### 🔍 Filtrar Tablet a Modificar")
-                f1, f2 = st.columns(2)
-                with f1:
-                    busq_ed_tab = st.text_input("Buscar por Serie, IMEI, Modelo o Asignado:", placeholder="Ej. Samsung, Juan", key="busq_ed_tab")
-                with f2:
-                    opts_ed_est_tab = ["Todos"] + list(dict_est_tab.keys())
-                    est_ed_sel_tab = st.selectbox("Filtrar por Estatus:", opts_ed_est_tab, key="est_ed_tab")
-
-                df_ed_tab = df_tab.copy()
-                if est_ed_sel_tab != "Todos":
-                    df_ed_tab = df_ed_tab[df_ed_tab["estatus"] == est_ed_sel_tab]
-
-                if busq_ed_tab.strip():
-                    term_ed = busq_ed_tab.strip().lower()
-                    df_ed_tab = df_ed_tab[
-                        df_ed_tab["numero_serie"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_tab["imei"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_tab["marca"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_tab["modelo"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_tab["asignado_a"].astype(str).str.lower().str.contains(term_ed)
-                    ]
+                df_ed_tab = render_filtros_inventario(df_tab, "tab_ed")
 
                 if df_ed_tab.empty:
                     st.warning("No se encontraron tablets con los filtros seleccionados.")

@@ -1,0 +1,11 @@
+streamlit
+pandas
+mysql-connector-python
+sshtunnel
+paramiko
+python-dotenv
+docxtpl
+num2words
+plotly
+openpyxl
+gspread

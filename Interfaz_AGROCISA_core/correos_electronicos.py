@@ -109,6 +109,45 @@ def obtener_correos_df():
         st.error(f"⚠️ Error al consultar correos: {e}")
         return pd.DataFrame()
 
+def sincronizar_correo_empleado(cursor, codigo_emp, direccion, pass_val, id_tipo):
+    """Inserta o actualiza el correo específico (Corporativo o Gmail) del empleado."""
+    if not direccion or not str(direccion).strip() or "@" not in str(direccion):
+        return
+
+    dir_clean = str(direccion).strip().lower()
+    pass_clean = str(pass_val).strip() if pass_val else None
+    codigo_clean = str(codigo_emp).strip()
+
+    cols_reales = obtener_columnas_tabla(cursor, "correos_electronicos")
+    col_pass_nom = None
+    for cand in ['contrasena', 'password', 'clave', 'pass']:
+        if cand in cols_reales:
+            col_pass_nom = cand
+            break
+
+    # Verificar si ya existe este tipo de correo para el colaborador
+    cursor.execute("""
+        SELECT id_correo FROM correos_electronicos 
+        WHERE TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+          AND id_tipo_correo = %s
+    """, (codigo_clean, id_tipo))
+    row_c = cursor.fetchone()
+
+    if row_c:
+        id_correo = row_c[0]
+        if col_pass_nom:
+            if pass_clean:
+                cursor.execute(f"UPDATE correos_electronicos SET direccion_correo = %s, {col_pass_nom} = %s, id_estatus_correo = 1 WHERE id_correo = %s", (dir_clean, pass_clean, id_correo))
+            else:
+                cursor.execute("UPDATE correos_electronicos SET direccion_correo = %s, id_estatus_correo = 1 WHERE id_correo = %s", (dir_clean, id_correo))
+        else:
+            cursor.execute("UPDATE correos_electronicos SET direccion_correo = %s, id_estatus_correo = 1 WHERE id_correo = %s", (dir_clean, id_correo))
+    else:
+        if col_pass_nom:
+            cursor.execute(f"INSERT INTO correos_electronicos (codigo_empleado, direccion_correo, {col_pass_nom}, id_tipo_correo, id_estatus_correo) VALUES (%s, %s, %s, %s, 1)", (codigo_clean, dir_clean, pass_clean, id_tipo))
+        else:
+            cursor.execute("INSERT INTO correos_electronicos (codigo_empleado, direccion_correo, id_tipo_correo, id_estatus_correo) VALUES (%s, %s, %s, 1)", (codigo_clean, dir_clean, id_tipo))
+
 def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_estatus):
     try:
         conn = obtener_conexion()
@@ -160,12 +199,23 @@ def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_e
         return False
 
 # ==============================================================================
-# OPERACIONES: EMPLEADOS (Alta y Actualización)
+# OPERACIONES: EMPLEADOS (Alta, Edición y Correos Integrados)
 # ==============================================================================
 def obtener_empleados_completos_df():
     try:
         conn = obtener_conexion()
-        query = """
+        cursor = conn.cursor()
+        cols_reales = obtener_columnas_tabla(cursor, "correos_electronicos")
+        col_pass_nom = None
+        for cand in ['contrasena', 'password', 'clave', 'pass']:
+            if cand in cols_reales:
+                col_pass_nom = cand
+                break
+
+        select_pass_corp = f", MAX(CASE WHEN ce.id_tipo_correo = 1 THEN ce.{col_pass_nom} END) AS pass_corporativo" if col_pass_nom else ", '' AS pass_corporativo"
+        select_pass_gmail = f", MAX(CASE WHEN ce.id_tipo_correo = 2 THEN ce.{col_pass_nom} END) AS pass_gmail" if col_pass_nom else ", '' AS pass_gmail"
+
+        query = f"""
             SELECT 
                 e.codigo,
                 e.nombre,
@@ -175,11 +225,26 @@ def obtener_empleados_completos_df():
                 e.id_sucursal, s.nombre_sucursal AS sucursal,
                 e.id_departamento, d.nombre_departamento AS departamento,
                 e.id_puesto, p.nombre_puesto AS puesto,
-                e.id_estatus_empleado
+                e.id_estatus_empleado,
+                ce_tot.correo_corporativo,
+                ce_tot.correo_gmail
+                {select_pass_corp}
+                {select_pass_gmail}
             FROM empleados e
             LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
             LEFT JOIN departamentos d ON e.id_departamento = d.id_departamento
             LEFT JOIN puestos p ON e.id_puesto = p.id_puesto
+            LEFT JOIN (
+                SELECT 
+                    codigo_empleado,
+                    MAX(CASE WHEN id_tipo_correo = 1 THEN direccion_correo END) AS correo_corporativo,
+                    MAX(CASE WHEN id_tipo_correo = 2 THEN direccion_correo END) AS correo_gmail
+                FROM correos_electronicos
+                WHERE id_estatus_correo = 1
+                GROUP BY codigo_empleado
+            ) ce_tot ON e.codigo = ce_tot.codigo_empleado
+            LEFT JOIN correos_electronicos ce ON e.codigo = ce.codigo_empleado
+            GROUP BY e.codigo
             ORDER BY nombre_completo ASC
         """
         df = pd.read_sql(query, conn)
@@ -193,7 +258,7 @@ def obtener_empleados_completos_df():
         st.error(f"⚠️ Error al cargar empleados: {e}")
         return pd.DataFrame()
 
-def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
+def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus, correo_corp="", pass_corp="", correo_gmail="", pass_gmail=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
@@ -206,6 +271,12 @@ def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, i
         cursor.execute(query, (codigo_clean, nombre.strip(), ap_pat.strip(), ap_mat.strip() if ap_mat else None,
                               id_suc, id_dep, id_pue, id_estatus))
 
+        # Guarda correos si se ingresaron
+        if correo_corp.strip():
+            sincronizar_correo_empleado(cursor, codigo_clean, correo_corp, pass_corp, 1)
+        if correo_gmail.strip():
+            sincronizar_correo_empleado(cursor, codigo_clean, correo_gmail, pass_gmail, 2)
+
         conn.commit()
         conn.close()
         return True
@@ -213,7 +284,7 @@ def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, i
         st.error(f"⚠️ Error en la base de datos al guardar empleado: {e}")
         return False
 
-def actualizar_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
+def actualizar_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus, correo_corp="", pass_corp="", correo_gmail="", pass_gmail=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
@@ -227,6 +298,12 @@ def actualizar_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_p
         """
         cursor.execute(query, (nombre.strip(), ap_pat.strip(), ap_mat.strip() if ap_mat else None,
                               id_suc, id_dep, id_pue, id_estatus, codigo_clean))
+
+        # Sincroniza correos si se modificaron
+        if correo_corp.strip():
+            sincronizar_correo_empleado(cursor, codigo_clean, correo_corp, pass_corp, 1)
+        if correo_gmail.strip():
+            sincronizar_correo_empleado(cursor, codigo_clean, correo_gmail, pass_gmail, 2)
 
         conn.commit()
         conn.close()
@@ -245,7 +322,7 @@ def render():
     tab_correos, tab_empleados = st.tabs(["📧 Gestión de Correos Electrónicos", "👤 Registro y Modificación de Empleados"])
 
     # --------------------------------------------------------------------------
-    # TAB 1: CORREOS ELECTRÓNICOS (Alta y Edición)
+    # TAB 1: CORREOS ELECTRÓNICOS (Directorio y Edición Individual)
     # --------------------------------------------------------------------------
     with tab_correos:
         st.subheader("✉️ Registro y Edición de Cuentas de Correo")
@@ -360,7 +437,7 @@ def render():
             st.caption(f"Mostrando **{len(df_filt)}** de **{len(df_correos)}** cuentas registradas.")
 
     # --------------------------------------------------------------------------
-    # TAB 2: ALTA Y MODIFICACIÓN DE EMPLEADOS
+    # TAB 2: ALTA Y MODIFICACIÓN DE EMPLEADOS (CON CORREOS DIRECTOS)
     # --------------------------------------------------------------------------
     with tab_empleados:
         st.subheader("👤 Gestión de Colaboradores")
@@ -382,6 +459,11 @@ def render():
         pue_id_def = list(dict_pue.values())[0] if dict_pue else 1
         est_id_def = 1
 
+        corp_def = ""
+        pass_corp_def = ""
+        gmail_def = ""
+        pass_gmail_def = ""
+
         if modo_emp == "✏️ Modificar Existente":
             if df_emp_comp.empty:
                 st.info("No hay colaboradores registrados para modificar.")
@@ -400,9 +482,15 @@ def render():
                 pue_id_def = row_e["id_puesto"]
                 est_id_def = row_e["id_estatus_empleado"]
 
+                corp_def = row_e["correo_corporativo"] or ""
+                pass_corp_def = row_e["pass_corporativo"] or ""
+                gmail_def = row_e["correo_gmail"] or ""
+                pass_gmail_def = row_e["pass_gmail"] or ""
+
         st.divider()
 
         with st.form("form_empleado"):
+            st.markdown("##### 📝 Datos Generales")
             c1, c2, c3 = st.columns(3)
             with c1:
                 if modo_emp == "➕ Registrar Nuevo Empleado":
@@ -430,7 +518,23 @@ def render():
                 idx_est_e = list(DICT_ESTATUS_EMP.values()).index(est_id_def) if est_id_def in DICT_ESTATUS_EMP.values() else 0
                 est_e_nom = st.selectbox("Estatus del Empleado:", list(DICT_ESTATUS_EMP.keys()), index=idx_est_e)
 
-            texto_boton = "💾 Guardar Nuevo Colaborador" if modo_emp == "➕ Registrar Nuevo Empleado" else "💾 Actualizar Datos del Empleado"
+            st.divider()
+            st.markdown("##### ✉️ Asignación de Correos Electrónicos (Opcional)")
+            
+            c_corp1, c_corp2 = st.columns(2)
+            with c_corp1:
+                correo_corp_in = st.text_input("🏢 Correo Corporativo:", value=corp_def, placeholder="usuario@agrocisa.com.mx")
+            with c_corp2:
+                pass_corp_in = st.text_input("🔑 Contraseña Corporativo:", value=pass_corp_def, type="password", placeholder="Contraseña de la cuenta")
+
+            c_g1, c_g2 = st.columns(2)
+            with c_g1:
+                correo_gmail_in = st.text_input("📮 Correo Gmail:", value=gmail_def, placeholder="usuario@gmail.com")
+            with c_g2:
+                pass_gmail_in = st.text_input("🔑 Contraseña Gmail:", value=pass_gmail_def, type="password", placeholder="Contraseña de la cuenta")
+
+            st.write("")
+            texto_boton = "💾 Guardar Nuevo Colaborador y Correos" if modo_emp == "➕ Registrar Nuevo Empleado" else "💾 Actualizar Datos del Empleado y Correos"
             btn_guardar_emp = st.form_submit_button(texto_boton, type="primary")
 
             if btn_guardar_emp:
@@ -450,9 +554,13 @@ def render():
                             id_suc=dict_suc[suc_nom],
                             id_dep=dict_dep[dep_nom],
                             id_pue=dict_pue[pue_nom],
-                            id_estatus=DICT_ESTATUS_EMP[est_e_nom]
+                            id_estatus=DICT_ESTATUS_EMP[est_e_nom],
+                            correo_corp=correo_corp_in,
+                            pass_corp=pass_corp_in,
+                            correo_gmail=correo_gmail_in,
+                            pass_gmail=pass_gmail_in
                         )
-                        msg_toast = "¡Nuevo colaborador registrado exitosamente!"
+                        msg_toast = "¡Nuevo colaborador y cuentas registradas con éxito!"
                     else:
                         exito = actualizar_empleado_bdd(
                             codigo=cod_def,
@@ -462,9 +570,13 @@ def render():
                             id_suc=dict_suc[suc_nom],
                             id_dep=dict_dep[dep_nom],
                             id_pue=dict_pue[pue_nom],
-                            id_estatus=DICT_ESTATUS_EMP[est_e_nom]
+                            id_estatus=DICT_ESTATUS_EMP[est_e_nom],
+                            correo_corp=correo_corp_in,
+                            pass_corp=pass_corp_in,
+                            correo_gmail=correo_gmail_in,
+                            pass_gmail=pass_gmail_in
                         )
-                        msg_toast = "¡Datos del colaborador actualizados en BDD!"
+                        msg_toast = "¡Datos del colaborador y cuentas actualizados en BDD!"
 
                     if exito:
                         st.toast(msg_toast, icon="🎉")
@@ -476,7 +588,7 @@ def render():
         if not df_emp_comp.empty:
             f1, f2 = st.columns(2)
             with f1:
-                txt_busq_emp = st.text_input("🔍 Buscar por Nombre, Código o Sucursal:", placeholder="Ej. Morelia, 00848, Abdiel")
+                txt_busq_emp = st.text_input("🔍 Buscar por Nombre, Código, Correo o Sucursal:", placeholder="Ej. Morelia, 00848, agrocisa.com, Abdiel")
             with f2:
                 opts_est_emp = ["Todos"] + list(DICT_ESTATUS_EMP.keys())
                 sel_est_emp = st.selectbox("Filtrar por Estatus de Empleado:", opts_est_emp)
@@ -490,13 +602,15 @@ def render():
                 df_filt_emp = df_filt_emp[
                     df_filt_emp["nombre_completo"].astype(str).str.lower().str.contains(term_e) |
                     df_filt_emp["codigo_str"].astype(str).str.lower().str.contains(term_e) |
+                    df_filt_emp["correo_corporativo"].astype(str).str.lower().str.contains(term_e) |
+                    df_filt_emp["correo_gmail"].astype(str).str.lower().str.contains(term_e) |
                     df_filt_emp["sucursal"].astype(str).str.lower().str.contains(term_e) |
                     df_filt_emp["departamento"].astype(str).str.lower().str.contains(term_e) |
                     df_filt_emp["puesto"].astype(str).str.lower().str.contains(term_e)
                 ]
 
             st.dataframe(
-                df_filt_emp[["codigo_str", "nombre_completo", "sucursal", "departamento", "puesto", "estatus_empleado"]],
+                df_filt_emp[["codigo_str", "nombre_completo", "correo_corporativo", "correo_gmail", "sucursal", "departamento", "puesto", "estatus_empleado"]],
                 use_container_width=True,
                 hide_index=True
             )
