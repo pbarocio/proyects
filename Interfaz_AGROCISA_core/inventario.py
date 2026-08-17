@@ -503,14 +503,33 @@ def actualizar_dispositivo_red(id_dispositivo, id_sucursal, tipo, marca, modelo,
 # AYUDANTE DE FILTRADO DINÁMICO
 # ==============================================================================
 def render_filtros_inventario(df_origen, key_prefix):
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        txt_busq = st.text_input("🔍 Buscar texto libre:", placeholder="Ej. Juan, Morelia, 35077, HP...", key=f"txt_{key_prefix}")
-    with c2:
-        opts_est = ["Todos"] + sorted(list(df_origen["estatus"].dropna().unique()))
-        est_sel = st.selectbox("Estatus:", opts_est, key=f"est_{key_prefix}")
+    # Detecta automáticamente la columna de serie/identificador según el tipo de hardware
+    col_id_unic = "imei" if "imei" in df_origen.columns else ("numero_serie" if "numero_serie" in df_origen.columns else "id_dispositivo")
+    
+    # Lista formateada para el autocompletado en vivo
+    opts_autocompletar = [
+        f"{r[col_id_unic]} | {r.get('marca_modelo', r.get('modelo', ''))} | {r.get('asignado_a', '')}"
+        for _, r in df_origen.iterrows()
+        if pd.notna(r[col_id_unic]) and str(r[col_id_unic]).strip() != ''
+    ]
 
-    f1, f2, f3 = st.columns(3)
+    c_auto, c_est = st.columns([2, 1])
+    with c_auto:
+        # Autocompletado en tiempo real al escribir serie o IMEI
+        sel_auto = st.selectbox(
+            f"🔍 Autocompletar por {'IMEI' if col_id_unic == 'imei' else 'Número de Serie'}:",
+            opts_autocompletar,
+            index=None,
+            placeholder=f"Teclea aquí {'el IMEI' if col_id_unic == 'imei' else 'la Serie'} o Modelo para autocompletar...",
+            key=f"auto_{key_prefix}"
+        )
+    with c_est:
+        opts_est = ["Todos"] + sorted(list(df_origen["estatus"].dropna().unique()))
+        est_sel = st.selectbox("Filtrar por Estatus:", opts_est, key=f"est_{key_prefix}")
+
+    c_busq, f1, f2, f3 = st.columns([1.5, 1, 1, 1])
+    with c_busq:
+        txt_busq = st.text_input("Búsqueda libre:", placeholder="Ej. Juan, Morelia...", key=f"txt_{key_prefix}")
     with f1:
         opts_suc = ["Todas"] + sorted(list(df_origen["sucursal"].dropna().unique()))
         suc_sel = st.selectbox("Sucursal:", opts_suc, key=f"suc_{key_prefix}")
@@ -523,6 +542,13 @@ def render_filtros_inventario(df_origen, key_prefix):
 
     df_filt = df_origen.copy()
 
+    # Si se seleccionó un equipo por autocompletado de IMEI / Serie
+    if sel_auto:
+        id_buscado = sel_auto.split(" | ")[0].strip()
+        df_filt = df_filt[df_filt[col_id_unic].astype(str).str.strip() == id_buscado]
+        return df_filt
+
+    # Filtros generales
     if est_sel != "Todos":
         df_filt = df_filt[df_filt["estatus"] == est_sel]
     if suc_sel != "Todas":
@@ -607,15 +633,25 @@ def render():
                         notificar_exito(f"¡Celular IMEI {imei} dado de alta con éxito!")
         with t3:
             if not df_cel.empty:
-                st.markdown("### 🔍 Filtrar Celular a Modificar")
-                df_ed_cel = render_filtros_inventario(df_cel, "cel_ed")
+                st.markdown("### 🔍 Búsqueda y Autocompletado de Celular")
+                st.caption("Escribe en la casilla (IMEI, Modelo, Colaborador o Sucursal) para autocompletar la selección:")
 
-                if df_ed_cel.empty:
-                    st.warning("No se encontraron celulares con los filtros seleccionados.")
-                else:
-                    cel_sel = st.selectbox("Selecciona Celular:", [f"{r['imei']} - {r['marca_modelo']} ({r['estatus']}) -> {r['asignado_a']}" for _, r in df_ed_cel.iterrows()], key="sel_ed_cel")
-                    imei_ed = cel_sel.split(" - ")[0]
-                    r = df_ed_cel[df_ed_cel["imei"] == imei_ed].iloc[0]
+                opts_cel_ed = [
+                    f"{r['imei']} | {r['marca_modelo']} | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
+                    for _, r in df_cel.iterrows()
+                ]
+
+                cel_sel = st.selectbox(
+                    "Selecciona o teclea para buscar:",
+                    opts_cel_ed,
+                    index=None,
+                    placeholder="🔍 Teclea aquí IMEI, Modelo, Empleado o Sucursal...",
+                    key="sel_ed_cel_auto"
+                )
+
+                if cel_sel:
+                    imei_ed = cel_sel.split(" | ")[0]
+                    r = df_cel[df_cel["imei"] == imei_ed].iloc[0]
                     
                     st.divider()
                     with st.form(f"form_ed_cel_{imei_ed}"):
@@ -692,15 +728,25 @@ def render():
                         notificar_exito(f"¡Laptop Serie {serie} registrada con éxito!")
         with t3:
             if not df_lap.empty:
-                st.markdown("### 🔍 Filtrar Laptop a Modificar")
-                df_ed_lap = render_filtros_inventario(df_lap, "lap_ed")
+                st.markdown("### 🔍 Búsqueda y Autocompletado de Laptop")
+                st.caption("Escribe en la casilla (Serie, Hostname, Modelo, Colaborador o Sucursal) para autocompletar:")
 
-                if df_ed_lap.empty:
-                    st.warning("No se encontraron laptops con los filtros seleccionados.")
-                else:
-                    lap_sel = st.selectbox("Selecciona Laptop:", [f"{r['numero_serie']} - {r['hostname']} ({r['marca']} {r['modelo']}) [{r['estatus']}] -> {r['asignado_a']}" for _, r in df_ed_lap.iterrows()], key="sel_ed_lap")
-                    serie_ed = lap_sel.split(" - ")[0]
-                    r = df_ed_lap[df_ed_lap["numero_serie"] == serie_ed].iloc[0]
+                opts_lap_ed = [
+                    f"{r['numero_serie']} | {r['hostname']} ({r['marca']} {r['modelo']}) | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
+                    for _, r in df_lap.iterrows()
+                ]
+
+                lap_sel = st.selectbox(
+                    "Selecciona o teclea para buscar:",
+                    opts_lap_ed,
+                    index=None,
+                    placeholder="🔍 Teclea aquí Serie, Hostname, Marca, Empleado...",
+                    key="sel_ed_lap_auto"
+                )
+
+                if lap_sel:
+                    serie_ed = lap_sel.split(" | ")[0]
+                    r = df_lap[df_lap["numero_serie"] == serie_ed].iloc[0]
                     
                     st.divider()
                     with st.form(f"form_ed_lap_{serie_ed}"):
@@ -782,15 +828,25 @@ def render():
                         notificar_exito(f"¡CPU Hostname {host} registrado con éxito!")
         with t3:
             if not df_cpu.empty:
-                st.markdown("### 🔍 Filtrar CPU a Modificar")
-                df_ed_cpu = render_filtros_inventario(df_cpu, "cpu_ed")
+                st.markdown("### 🔍 Búsqueda y Autocompletado de CPU")
+                st.caption("Escribe en la casilla (Hostname, Serie, Modelo, Colaborador o Sucursal) para autocompletar:")
 
-                if df_ed_cpu.empty:
-                    st.warning("No se encontraron CPUs con los filtros seleccionados.")
-                else:
-                    cpu_sel = st.selectbox("Selecciona CPU:", [f"{r['hostname']} - {r['numero_serie']} ({r['marca']} {r['modelo']}) [{r['estatus']}] -> {r['asignado_a']}" for _, r in df_ed_cpu.iterrows()], key="sel_ed_cpu")
-                    host_ed = cpu_sel.split(" - ")[0]
-                    r = df_ed_cpu[df_ed_cpu["hostname"] == host_ed].iloc[0]
+                opts_cpu_ed = [
+                    f"{r['hostname']} | {r['numero_serie']} ({r['marca']} {r['modelo']}) | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
+                    for _, r in df_cpu.iterrows()
+                ]
+
+                cpu_sel = st.selectbox(
+                    "Selecciona o teclea para buscar:",
+                    opts_cpu_ed,
+                    index=None,
+                    placeholder="🔍 Teclea aquí Hostname, Serie, Empleado...",
+                    key="sel_ed_cpu_auto"
+                )
+
+                if cpu_sel:
+                    host_ed = cpu_sel.split(" | ")[0]
+                    r = df_cpu[df_cpu["hostname"] == host_ed].iloc[0]
                     
                     st.divider()
                     with st.form(f"form_ed_cpu_{host_ed}"):
@@ -858,15 +914,25 @@ def render():
                         notificar_exito(f"¡Monitor Serie {serie} registrado con éxito!")
         with t3:
             if not df_mon.empty:
-                st.markdown("### 🔍 Filtrar Monitor a Modificar")
-                df_ed_mon = render_filtros_inventario(df_mon, "mon_ed")
+                st.markdown("### 🔍 Búsqueda y Autocompletado de Monitor")
+                st.caption("Escribe en la casilla (Serie, Marca, Modelo, Colaborador o Sucursal) para autocompletar:")
 
-                if df_ed_mon.empty:
-                    st.warning("No se encontraron monitores con los filtros seleccionados.")
-                else:
-                    mon_sel = st.selectbox("Selecciona Monitor:", [f"{r['numero_serie']} - {r['marca']} {r['modelo']} [{r['estatus']}] -> {r['asignado_a']}" for _, r in df_ed_mon.iterrows()], key="sel_ed_mon")
-                    serie_ed = mon_sel.split(" - ")[0]
-                    r = df_ed_mon[df_ed_mon["numero_serie"] == serie_ed].iloc[0]
+                opts_mon_ed = [
+                    f"{r['numero_serie']} | {r['marca']} {r['modelo']} | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
+                    for _, r in df_mon.iterrows()
+                ]
+
+                mon_sel = st.selectbox(
+                    "Selecciona o teclea para buscar:",
+                    opts_mon_ed,
+                    index=None,
+                    placeholder="🔍 Teclea aquí Serie, Marca, Empleado...",
+                    key="sel_ed_mon_auto"
+                )
+
+                if mon_sel:
+                    serie_ed = mon_sel.split(" | ")[0]
+                    r = df_mon[df_mon["numero_serie"] == serie_ed].iloc[0]
                     
                     st.divider()
                     with st.form(f"form_ed_mon_{serie_ed}"):
@@ -926,15 +992,25 @@ def render():
                         notificar_exito(f"¡Tablet Serie {serie} registrada con éxito!")
         with t3:
             if not df_tab.empty:
-                st.markdown("### 🔍 Filtrar Tablet a Modificar")
-                df_ed_tab = render_filtros_inventario(df_tab, "tab_ed")
+                st.markdown("### 🔍 Búsqueda y Autocompletado de Tablet")
+                st.caption("Escribe en la casilla (Serie, IMEI, Modelo, Colaborador o Sucursal) para autocompletar:")
 
-                if df_ed_tab.empty:
-                    st.warning("No se encontraron tablets con los filtros seleccionados.")
-                else:
-                    tab_sel = st.selectbox("Selecciona Tablet:", [f"{r['numero_serie']} - {r['marca']} {r['modelo']} [{r['estatus']}] -> {r['asignado_a']}" for _, r in df_ed_tab.iterrows()], key="sel_ed_tab")
-                    serie_ed = tab_sel.split(" - ")[0]
-                    r = df_ed_tab[df_ed_tab["numero_serie"] == serie_ed].iloc[0]
+                opts_tab_ed = [
+                    f"{r['numero_serie']} | IMEI: {r['imei'] or 'S/I'} ({r['marca']} {r['modelo']}) | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
+                    for _, r in df_tab.iterrows()
+                ]
+
+                tab_sel = st.selectbox(
+                    "Selecciona o teclea para buscar:",
+                    opts_tab_ed,
+                    index=None,
+                    placeholder="🔍 Teclea aquí Serie, IMEI, Marca, Empleado...",
+                    key="sel_ed_tab_auto"
+                )
+
+                if tab_sel:
+                    serie_ed = tab_sel.split(" | ")[0]
+                    r = df_tab[df_tab["numero_serie"] == serie_ed].iloc[0]
                     
                     st.divider()
                     with st.form(f"form_ed_tab_{serie_ed}"):
@@ -1028,34 +1104,25 @@ def render():
                         notificar_exito(f"¡Equipo de Red {host or modelo} registrado con éxito!")
         with t3:
             if not df_red.empty:
-                st.markdown("### 🔍 Filtrar Equipo de Red a Modificar")
-                f1, f2 = st.columns(2)
-                with f1:
-                    busq_ed_red = st.text_input("Buscar por Hostname, Tipo, Marca o Serie:", placeholder="Ej. Switch, Mikrotik, La Barca", key="busq_ed_red")
-                with f2:
-                    opts_ed_suc_red = ["Todas"] + list(dict_sucursales.keys())
-                    suc_ed_sel_red = st.selectbox("Filtrar por Sucursal:", opts_ed_suc_red, key="suc_ed_red")
+                st.markdown("### 🔍 Búsqueda y Autocompletado de Dispositivo de Red")
+                st.caption("Escribe en la casilla (Hostname, Tipo, Marca o Sucursal) para autocompletar:")
 
-                df_ed_red = df_red.copy()
-                if suc_ed_sel_red != "Todas":
-                    df_ed_red = df_ed_red[df_ed_red["sucursal"] == suc_ed_sel_red]
+                opts_red_ed = [
+                    f"{r['id_dispositivo']} | [{r['tipo']}] {r['marca']} {r['modelo']} (Host: {r['hostname'] or 'S/H'}) | {r['sucursal']}"
+                    for _, r in df_red.iterrows()
+                ]
 
-                if busq_ed_red.strip():
-                    term_ed = busq_ed_red.strip().lower()
-                    df_ed_red = df_ed_red[
-                        df_ed_red["tipo"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_red["marca"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_red["modelo"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_red["hostname"].astype(str).str.lower().str.contains(term_ed) |
-                        df_ed_red["numero_serie"].astype(str).str.lower().str.contains(term_ed)
-                    ]
+                red_sel = st.selectbox(
+                    "Selecciona o teclea para buscar:",
+                    opts_red_ed,
+                    index=None,
+                    placeholder="🔍 Teclea aquí Hostname, Tipo, Marca, Sucursal...",
+                    key="sel_ed_red_auto"
+                )
 
-                if df_ed_red.empty:
-                    st.warning("No se encontraron dispositivos de red con los filtros seleccionados.")
-                else:
-                    red_sel = st.selectbox("Selecciona Equipo de Red:", [f"{r['id_dispositivo']} - [{r['tipo']}] {r['marca']} {r['modelo']} ({r['sucursal']})" for _, r in df_ed_red.iterrows()], key="sel_ed_red")
-                    id_red_ed = int(red_sel.split(" - ")[0])
-                    r = df_ed_red[df_ed_red["id_dispositivo"] == id_red_ed].iloc[0]
+                if red_sel:
+                    id_red_ed = int(red_sel.split(" | ")[0])
+                    r = df_red[df_red["id_dispositivo"] == id_red_ed].iloc[0]
                     
                     st.divider()
                     with st.form(f"form_ed_red_{id_red_ed}"):

@@ -291,10 +291,14 @@ def render_consulta():
     if estatus_sel != "Todos":
         df_filtrado = df_filtrado[df_filtrado["Estatus Documento"] == estatus_sel]
 
+    df_filtrado = df_filtrado.reset_index(drop=True)
+
     st.divider()
 
     st.dataframe(
-        df_filtrado[["folio", "fecha_entrega", "colaborador", "tipo", "equipo_descripcion", "Estatus Documento"]],
+        df_filtrado[["folio", "fecha_entrega", "colaborador", "tipo", "id_equipo", "equipo_descripcion", "Estatus Documento"]].rename(
+            columns={"id_equipo": "Identificador / IMEI / Serie"}
+        ),
         use_container_width=True,
         hide_index=True
     )
@@ -304,12 +308,19 @@ def render_consulta():
     st.markdown("### 🖨️ Re-generar Documento DOCX por Folio")
     
     if not df_filtrado.empty:
-        opts_folios = [f"{r['folio']} | {r['colaborador']} - {r['tipo']} ({r['equipo_descripcion']})" for _, r in df_filtrado.iterrows()]
-        folio_sel_str = st.selectbox("Selecciona la carta responsiva a descargar:", opts_folios)
+        def formatear_opcion(i):
+            r = df_filtrado.iloc[i]
+            id_txt = f" (ID/IMEI: {r['id_equipo']})" if r['id_equipo'] else ""
+            return f"{r['folio']} | {r['colaborador']} - {r['tipo']} {r['equipo_descripcion']}{id_txt} [{r['Estatus Documento']}]"
 
-        idx_sel = opts_folios.index(folio_sel_str)
+        idx_sel = st.selectbox(
+            "Selecciona la carta responsiva a descargar:",
+            options=range(len(df_filtrado)),
+            format_func=formatear_opcion,
+            key="sel_reimpresion_responsiva"
+        )
+
         row_sel = df_filtrado.iloc[idx_sel]
-
         buffer_docx = generar_docx_reimpresion(row_sel)
 
         if buffer_docx:
