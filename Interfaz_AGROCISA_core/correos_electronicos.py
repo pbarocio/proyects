@@ -147,7 +147,7 @@ def obtener_correos_df(dict_tipo_rev, dict_est_rev):
                 ce.id_tipo_correo,
                 ce.id_estatus_correo
             FROM correos_electronicos ce
-            LEFT JOIN empleados e ON ce.codigo_empleado = e.codigo
+            LEFT JOIN empleados e ON TRIM(LEADING '0' FROM CAST(ce.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
             ORDER BY e.nombre ASC, ce.id_correo DESC
         """
         df = pd.read_sql(query, conn)
@@ -217,7 +217,7 @@ def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_e
         return False
 
 # ==============================================================================
-# OPERACIONES: EMPLEADOS
+# OPERACIONES: EMPLEADOS Y ACTUALIZACIÓN EN CASCADA
 # ==============================================================================
 def obtener_empleados_completos_df(dict_est_emp_rev):
     try:
@@ -278,19 +278,33 @@ def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, i
         st.error(f"⚠️ Error en la base de datos al guardar empleado: {e}")
         return False
 
-def actualizar_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
-    try:
-        conn = obtener_conexion()
-        cursor = conn.cursor()
-        codigo_clean = str(codigo).strip()
+def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
+    """
+    Actualiza los datos del empleado y, si se cambió el código de nómina,
+    propaga el cambio en cascada a todos los inventarios, responsivas, líneas y correos
+    desactivando temporalmente las restricciones de llave foránea.
+    """
+    conn = obtener_conexion()
+    if not conn:
+        return False
+        
+    cursor = conn.cursor()
+    c_viejo = str(codigo_viejo).strip()
+    c_nuevo = str(codigo_nuevo).strip().zfill(5)
 
-        query = """
+    try:
+        # 1. Desactivar validación de Foreign Keys en la sesión
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+
+        # 2. Actualizar datos base del empleado
+        query_emp = """
             UPDATE empleados
-            SET nombre = %s, apellido_paterno = %s, apellido_materno = %s,
+            SET codigo = %s, nombre = %s, apellido_paterno = %s, apellido_materno = %s,
                 id_sucursal = %s, id_departamento = %s, id_puesto = %s, id_estatus_empleado = %s
-            WHERE codigo = %s
+            WHERE TRIM(LEADING '0' FROM CAST(codigo AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
         """
-        cursor.execute(query, (
+        cursor.execute(query_emp, (
+            c_nuevo, 
             str(nombre).strip(), 
             str(ap_pat).strip(), 
             str(ap_mat).strip() if ap_mat else None,
@@ -298,15 +312,56 @@ def actualizar_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_p
             int(id_dep), 
             int(id_pue), 
             int(id_estatus), 
-            codigo_clean
+            c_viejo
         ))
 
+        # 3. Propagar en cascada a tablas dependientes si el código cambió
+        if c_viejo.lstrip('0') != c_nuevo.lstrip('0'):
+            tablas_cascada = [
+                ("correos_electronicos", "codigo_empleado"),
+                ("lineas_telefonicas", "codigo_empleado"),
+                ("inventario_celulares", "codigo_empleado"),
+                ("inventario_laptops", "codigo_empleado"),
+                ("inventario_cpu", "codigo_empleado"),
+                ("inventario_monitores", "codigo_empleado"),
+                ("inventario_tablets", "codigo_empleado"),
+                ("responsivas_celulares", "codigo_empleado"),
+                ("responsivas_laptops", "codigo_empleado"),
+                ("responsivas_cpu", "codigo_empleado"),
+                ("responsivas_monitores", "codigo_empleado"),
+                ("responsivas_tablets", "codigo_empleado"),
+            ]
+
+            for tabla, col in tablas_cascada:
+                try:
+                    cursor.execute(f"SHOW TABLES LIKE '{tabla}'")
+                    if cursor.fetchone():
+                        cols_t = obtener_columnas_tabla(cursor, tabla)
+                        if col in cols_t:
+                            q_cascade = f"""
+                                UPDATE {tabla}
+                                SET {col} = %s
+                                WHERE TRIM(LEADING '0' FROM CAST({col} AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+                            """
+                            cursor.execute(q_cascade, (c_nuevo, c_viejo))
+                except Exception:
+                    pass
+
+        # 4. Reactivar Foreign Keys y guardar cambios
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
         conn.commit()
-        conn.close()
         return True
+
     except Exception as e:
-        st.error(f"⚠️ Error en la base de datos al actualizar empleado: {e}")
+        conn.rollback()
+        try:
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
+        except Exception:
+            pass
+        st.error(f"⚠️ Error al actualizar colaborador en cascada: {e}")
         return False
+    finally:
+        conn.close()
 
 # ==============================================================================
 # RENDER PRINCIPAL
@@ -315,7 +370,6 @@ def render():
     aplicar_estilos_pantalla()
     st.title("📧 Administración de Correos y Empleados")
 
-    # Banner persistente de confirmación de operaciones
     if "mensaje_exito_correo" in st.session_state:
         st.success(st.session_state["mensaje_exito_correo"])
         del st.session_state["mensaje_exito_correo"]
@@ -567,9 +621,10 @@ def render():
                     st.divider()
 
                     with st.form(f"form_empleado_edit_{cod_def}"):
+                        st.caption("ℹ️ *Si corriges el Código de Empleado, se actualizará en automático en todos sus dispositivos, correos y responsivas asignadas.*")
                         c1, c2, c3 = st.columns(3)
                         with c1:
-                            st.text_input("Código de Empleado (ID):", value=cod_def, disabled=True)
+                            cod_in = st.text_input("Código de Empleado (ID):", value=cod_def)
                             nom_in = st.text_input("Nombre(s)*:", value=nom_def)
 
                         with c2:
@@ -589,14 +644,19 @@ def render():
                             idx_est_e = list(dict_est_emp.values()).index(est_id_def) if est_id_def in dict_est_emp.values() else 0
                             est_e_nom = st.selectbox("Estatus del Empleado:", list(dict_est_emp.keys()), index=idx_est_e)
 
-                        btn_actualizar_emp = st.form_submit_button("💾 Actualizar Datos del Empleado", type="primary")
+                        btn_actualizar_emp = st.form_submit_button("💾 Actualizar Datos del Empleado y Propagar Cascada", type="primary")
 
                         if btn_actualizar_emp:
-                            if not nom_in.strip() or not pat_in.strip():
+                            if not cod_in.strip():
+                                st.warning("⚠️ El Código de Empleado no puede quedar vacío.")
+                            elif not nom_in.strip() or not pat_in.strip():
                                 st.warning("⚠️ El Nombre y Apellido Paterno son obligatorios.")
+                            elif cod_in.strip().zfill(5) != cod_def and existe_codigo_empleado(cod_in):
+                                st.error(f"⛔ El nuevo código `{cod_in.strip()}` ya pertenece a otro colaborador.")
                             else:
-                                if actualizar_empleado_bdd(
-                                    codigo=cod_def,
+                                if actualizar_empleado_en_cascada_bdd(
+                                    codigo_viejo=cod_def,
+                                    codigo_nuevo=cod_in,
                                     nombre=nom_in,
                                     ap_pat=pat_in,
                                     ap_mat=mat_in,
@@ -605,7 +665,7 @@ def render():
                                     id_pue=int(dict_pue[pue_nom]),
                                     id_estatus=int(dict_est_emp[est_e_nom])
                                 ):
-                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Datos de `{nom_in.strip()} {pat_in.strip()}` (Código: {cod_def}) actualizados con éxito!"
+                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Datos de `{nom_in.strip()} {pat_in.strip()}` actualizados con éxito! (Código: `{cod_in.strip().zfill(5)}` propagado en cascada a todos sus equipos y correos)."
                                     st.rerun()
                 else:
                     st.info("👆 Selecciona o escribe un colaborador en el buscador de arriba para cargar sus datos.")
@@ -642,5 +702,4 @@ def render():
             )
             st.caption(f"Mostrando **{len(df_filt_emp)}** de **{len(df_emp_comp)}** colaboradores.")
 
-# Alias para compatibilidad de invocación en app.py
 render_correos = render

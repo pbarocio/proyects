@@ -119,7 +119,7 @@ def obtener_empleados_activos_df():
                 FROM correos_electronicos
                 WHERE id_estatus_correo = 1
                 GROUP BY codigo_empleado
-            ) ce ON e.codigo = ce.codigo_empleado
+            ) ce ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = TRIM(LEADING '0' FROM CAST(ce.codigo_empleado AS CHAR))
             WHERE e.id_estatus_empleado = 1
             ORDER BY nombre_completo ASC
         """
@@ -138,7 +138,6 @@ def obtener_equipos_disponibles():
         return equipos
 
     try:
-        # 1. Celulares DISPONIBLES (Filtra líneas V.I.P. con id_estatus != 5)
         df_cel = pd.read_sql("""
             SELECT ic.imei, ic.numero, ic.numero_serie, m.marca_modelo AS equipo, COALESCE(m.precio, 0) AS precio, 
                    ic.id_condicion, c.condicion_opcion AS condicion, 
@@ -164,7 +163,6 @@ def obtener_equipos_disponibles():
             lbl = f"IMEI: {r['imei']} - {r['equipo']} (Línea: {num_clean}){obs_txt}"
             equipos["celulares"].append({"id": r['imei'], "label": lbl, "data": r.to_dict()})
 
-        # 2. Laptops DISPONIBLES + Observaciones + Precio Real
         df_lap = pd.read_sql("""
             SELECT il.numero_serie, il.marca, il.modelo, il.hostname, 
                    COALESCE(il.observaciones, '') AS observaciones, 
@@ -183,7 +181,6 @@ def obtener_equipos_disponibles():
             lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']} [{r['hostname']}]{obs_txt}"
             equipos["laptops"].append({"id": r['numero_serie'], "label": lbl, "data": r.to_dict()})
 
-        # 3. CPUs DISPONIBLES + Observaciones
         df_cpu = pd.read_sql("""
             SELECT icp.hostname, icp.numero_serie, icp.procesador, icp.memoria_ram, icp.almacenamiento, 
                    thd.hdd_opcion AS tipo_hdd, icp.id_condicion, con.condicion_opcion AS condicion, 
@@ -201,7 +198,6 @@ def obtener_equipos_disponibles():
             lbl = f"Host: {r['hostname']} - Serie: {r['numero_serie']}{obs_txt}"
             equipos["cpus"].append({"id": r['hostname'], "label": lbl, "data": r.to_dict()})
 
-        # 4. Monitores DISPONIBLES + Observaciones
         df_mon = pd.read_sql("""
             SELECT imon.numero_serie, imon.marca, imon.modelo, imon.id_condicion, 
                    imon.id_estatus_monitor, 
@@ -216,7 +212,6 @@ def obtener_equipos_disponibles():
             lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']}{obs_txt}"
             equipos["monitores"].append({"id": r['numero_serie'], "label": lbl, "data": r.to_dict()})
 
-        # 5. Tablets DISPONIBLES + Observaciones
         df_tab = pd.read_sql("""
             SELECT itab.numero_serie, itab.imei, itab.marca, itab.modelo, 
                    itab.id_condicion, con.condicion_opcion AS condicion, 
@@ -243,17 +238,16 @@ def obtener_equipos_disponibles():
     return equipos
 
 # ==============================================================================
-# 3. TRANSACCIONES: ASIGNACIÓN Y DESVINCULACIÓN (CON INTEGRIDAD DE LÍNEA)
+# 3. TRANSACCIONES: ASIGNACIÓN Y DESVINCULACIÓN (CON AMARRE DE LÍNEA Y EMPLEADO)
 # ==============================================================================
 def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, mon_sel, tab_sel):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
         f_hoy = datetime.now().strftime('%Y-%m-%d')
-        codigo_emp_exacto = str(codigo_empleado).strip()
+        codigo_emp_exacto = str(codigo_empleado).strip().zfill(5)
 
         def cerrar_responsivas_previas(tabla, col_id_nombre, valor_id):
-            """Detecta dinámicamente si la tabla de responsivas tiene columna de estatus para inactivarla."""
             cols_reales = obtener_columnas_tabla(cursor, tabla)
             col_estatus_nom = None
             for cand in ['id_status', 'id_estatus', 'id_estatus_responsiva', 'id_status_responsiva']:
@@ -292,26 +286,28 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
             d = cel_sel['data']
             num_final = limpiar_str(d.get('num_edit')) or None
 
-            # Cierra responsiva previa de este IMEI
             cerrar_responsivas_previas("responsivas_celulares", "imei", d['imei'])
 
-            # Si lleva línea, evita duplicidad cerrando cualquier responsiva previa activa con esa misma línea
             if num_final:
                 cerrar_responsivas_previas("responsivas_celulares", "numero", num_final)
 
-                # Desvincula la línea de cualquier otro celular físico en inventario
                 cursor.execute("""
                     UPDATE inventario_celulares 
                     SET numero = NULL 
                     WHERE numero = %s AND imei != %s
                 """, (num_final, d['imei']))
 
-                # Actualiza estatus y empleado en la tabla de líneas
-                cursor.execute("""
+                # 👈 AMARRE DE CÓDIGO DIRECTO Y ADAPTATIVO A LA TABLA DE LÍNEAS
+                cols_lt = obtener_columnas_tabla(cursor, "lineas_telefonicas")
+                col_emp_lt = next((c for c in ['codigo_empleado', 'codigo', 'id_empleado'] if c in cols_lt), 'codigo_empleado')
+                col_est_lt = next((c for c in ['id_estatus_linea', 'id_estatus', 'id_status'] if c in cols_lt), 'id_estatus_linea')
+
+                q_linea = f"""
                     UPDATE lineas_telefonicas 
-                    SET id_estatus_linea = 3, codigo_empleado = %s 
+                    SET {col_est_lt} = 3, {col_emp_lt} = %s 
                     WHERE numero = %s
-                """, (codigo_emp_exacto, num_final))
+                """
+                cursor.execute(q_linea, (codigo_emp_exacto, num_final))
 
             cursor.execute("""
                 UPDATE inventario_celulares 
@@ -443,11 +439,6 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
         return False
 
 def procesar_desvinculacion_equipo(tipo_equipo, id_equipo, nuevo_estatus_id, razon_motivo, nombre_colaborador=""):
-    """
-    Cierra la responsiva activa y libera el equipo mandando codigo_empleado a NULL.
-    Si es celular, libera también la línea telefónica.
-    Registra en observaciones la fecha, a quién pertenecía y el motivo.
-    """
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
