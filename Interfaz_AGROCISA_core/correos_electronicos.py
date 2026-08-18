@@ -92,21 +92,36 @@ def obtener_catalogo_tipos_correo():
         "Gmail": 2
     }
 
-def existe_correo_duplicado(direccion, id_correo_actual=None):
+def verificar_correo_duplicado_info(direccion, id_correo_actual=None):
+    """Retorna si existe un duplicado y los datos del registro en conflicto."""
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
         dir_clean = direccion.strip().lower()
         if id_correo_actual is not None:
-            cursor.execute("SELECT COUNT(*) FROM correos_electronicos WHERE LOWER(direccion_correo) = %s AND id_correo != %s", (dir_clean, int(id_correo_actual)))
+            cursor.execute("""
+                SELECT ce.id_correo, ce.codigo_empleado, CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS empleado
+                FROM correos_electronicos ce
+                LEFT JOIN empleados e ON TRIM(LEADING '0' FROM CAST(ce.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
+                WHERE LOWER(ce.direccion_correo) = %s AND ce.id_correo != %s
+            """, (dir_clean, int(id_correo_actual)))
         else:
-            cursor.execute("SELECT COUNT(*) FROM correos_electronicos WHERE LOWER(direccion_correo) = %s", (dir_clean,))
+            cursor.execute("""
+                SELECT ce.id_correo, ce.codigo_empleado, CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS empleado
+                FROM correos_electronicos ce
+                LEFT JOIN empleados e ON TRIM(LEADING '0' FROM CAST(ce.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
+                WHERE LOWER(ce.direccion_correo) = %s
+            """, (dir_clean,))
         
-        cnt = cursor.fetchone()[0]
+        row = cursor.fetchone()
         conn.close()
-        return cnt > 0
+        if row:
+            if isinstance(row, dict):
+                return True, row.get('id_correo'), row.get('codigo_empleado'), row.get('empleado')
+            return True, row[0], row[1], row[2]
+        return False, None, None, None
     except Exception:
-        return False
+        return False, None, None, None
 
 def existe_codigo_empleado(codigo):
     try:
@@ -129,13 +144,14 @@ def obtener_correos_df(dict_tipo_rev, dict_est_rev):
         cursor = conn.cursor()
         cols_reales = obtener_columnas_tabla(cursor, "correos_electronicos")
         
-        col_pass_nom = None
-        for cand in ['contrasena', 'password', 'clave', 'pass']:
-            if cand in cols_reales:
-                col_pass_nom = cand
-                break
-
+        col_pass_nom = next((c for c in ['contrasena', 'password', 'clave', 'pass'] if c in cols_reales), None)
         select_pass = f", ce.{col_pass_nom} AS contrasena" if col_pass_nom else ", '' AS contrasena"
+
+        col_alias_nom = next((c for c in ['alias', 'alias_correo', 'aliases'] if c in cols_reales), None)
+        select_alias = f", ce.{col_alias_nom} AS alias" if col_alias_nom else ", '' AS alias"
+
+        col_com_nom = next((c for c in ['comentarios', 'comentario', 'observaciones', 'notas'] if c in cols_reales), None)
+        select_com = f", ce.{col_com_nom} AS comentarios" if col_com_nom else ", '' AS comentarios"
 
         query = f"""
             SELECT 
@@ -143,7 +159,9 @@ def obtener_correos_df(dict_tipo_rev, dict_est_rev):
                 ce.codigo_empleado,
                 CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS empleado,
                 ce.direccion_correo
-                {select_pass},
+                {select_pass}
+                {select_alias}
+                {select_com},
                 ce.id_tipo_correo,
                 ce.id_estatus_correo
             FROM correos_electronicos ce
@@ -156,12 +174,14 @@ def obtener_correos_df(dict_tipo_rev, dict_est_rev):
         if not df.empty:
             df["tipo_correo"] = df["id_tipo_correo"].astype(int).map(dict_tipo_rev).fillna("Otro")
             df["estatus_correo"] = df["id_estatus_correo"].astype(int).map(dict_est_rev).fillna("DESCONOCIDO")
+            df["alias"] = df["alias"].fillna("")
+            df["comentarios"] = df["comentarios"].fillna("")
         return df
     except Exception as e:
         st.error(f"⚠️ Error al consultar correos: {e}")
         return pd.DataFrame()
 
-def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_estatus):
+def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_estatus, alias_val="", comentarios_val=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
@@ -170,44 +190,50 @@ def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_e
         codigo_emp_str = str(codigo_emp).strip()
         direccion_clean = str(direccion).strip().lower()
         pass_clean = str(pass_val).strip() if pass_val else None
+        alias_clean = str(alias_val).strip() if alias_val else None
+        com_clean = str(comentarios_val).strip() if comentarios_val else None
         id_tipo_val = int(id_tipo)
         id_estatus_val = int(id_estatus)
 
         cols_reales = obtener_columnas_tabla(cursor, "correos_electronicos")
-        col_pass_nom = None
-        for cand in ['contrasena', 'password', 'clave', 'pass']:
-            if cand in cols_reales:
-                col_pass_nom = cand
-                break
+        col_pass_nom = next((c for c in ['contrasena', 'password', 'clave', 'pass'] if c in cols_reales), None)
+        col_alias_nom = next((c for c in ['alias', 'alias_correo', 'aliases'] if c in cols_reales), None)
+        col_com_nom = next((c for c in ['comentarios', 'comentario', 'observaciones', 'notas'] if c in cols_reales), None)
 
         if id_correo_val is not None:
+            set_clauses = ["codigo_empleado = %s", "direccion_correo = %s", "id_tipo_correo = %s", "id_estatus_correo = %s"]
+            params = [codigo_emp_str, direccion_clean, id_tipo_val, id_estatus_val]
+
             if col_pass_nom:
-                query = f"""
-                    UPDATE correos_electronicos 
-                    SET codigo_empleado = %s, direccion_correo = %s, {col_pass_nom} = %s, id_tipo_correo = %s, id_estatus_correo = %s
-                    WHERE id_correo = %s
-                """
-                cursor.execute(query, (codigo_emp_str, direccion_clean, pass_clean, id_tipo_val, id_estatus_val, id_correo_val))
-            else:
-                query = """
-                    UPDATE correos_electronicos 
-                    SET codigo_empleado = %s, direccion_correo = %s, id_tipo_correo = %s, id_estatus_correo = %s
-                    WHERE id_correo = %s
-                """
-                cursor.execute(query, (codigo_emp_str, direccion_clean, id_tipo_val, id_estatus_val, id_correo_val))
+                set_clauses.append(f"{col_pass_nom} = %s")
+                params.append(pass_clean)
+            if col_alias_nom:
+                set_clauses.append(f"{col_alias_nom} = %s")
+                params.append(alias_clean)
+            if col_com_nom:
+                set_clauses.append(f"{col_com_nom} = %s")
+                params.append(com_clean)
+
+            params.append(id_correo_val)
+            query = f"UPDATE correos_electronicos SET {', '.join(set_clauses)} WHERE id_correo = %s"
+            cursor.execute(query, tuple(params))
         else:
+            cols_insert = ["codigo_empleado", "direccion_correo", "id_tipo_correo", "id_estatus_correo"]
+            params = [codigo_emp_str, direccion_clean, id_tipo_val, id_estatus_val]
+
             if col_pass_nom:
-                query = f"""
-                    INSERT INTO correos_electronicos (codigo_empleado, direccion_correo, {col_pass_nom}, id_tipo_correo, id_estatus_correo)
-                    VALUES (%s, %s, %s, %s, %s)
-                """
-                cursor.execute(query, (codigo_emp_str, direccion_clean, pass_clean, id_tipo_val, id_estatus_val))
-            else:
-                query = """
-                    INSERT INTO correos_electronicos (codigo_empleado, direccion_correo, id_tipo_correo, id_estatus_correo)
-                    VALUES (%s, %s, %s, %s)
-                """
-                cursor.execute(query, (codigo_emp_str, direccion_clean, id_tipo_val, id_estatus_val))
+                cols_insert.append(col_pass_nom)
+                params.append(pass_clean)
+            if col_alias_nom:
+                cols_insert.append(col_alias_nom)
+                params.append(alias_clean)
+            if col_com_nom:
+                cols_insert.append(col_com_nom)
+                params.append(com_clean)
+
+            placeholders = ", ".join(["%s"] * len(params))
+            query = f"INSERT INTO correos_electronicos ({', '.join(cols_insert)}) VALUES ({placeholders})"
+            cursor.execute(query, tuple(params))
 
         conn.commit()
         conn.close()
@@ -279,11 +305,6 @@ def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, i
         return False
 
 def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
-    """
-    Actualiza los datos del empleado y, si se cambió el código de nómina,
-    propaga el cambio en cascada a todos los inventarios, responsivas, líneas y correos
-    desactivando temporalmente las restricciones de llave foránea.
-    """
     conn = obtener_conexion()
     if not conn:
         return False
@@ -293,10 +314,8 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
     c_nuevo = str(codigo_nuevo).strip().zfill(5)
 
     try:
-        # 1. Desactivar validación de Foreign Keys en la sesión
         cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
 
-        # 2. Actualizar datos base del empleado
         query_emp = """
             UPDATE empleados
             SET codigo = %s, nombre = %s, apellido_paterno = %s, apellido_materno = %s,
@@ -315,7 +334,6 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
             c_viejo
         ))
 
-        # 3. Propagar en cascada a tablas dependientes si el código cambió
         if c_viejo.lstrip('0') != c_nuevo.lstrip('0'):
             tablas_cascada = [
                 ("correos_electronicos", "codigo_empleado"),
@@ -347,7 +365,6 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
                 except Exception:
                     pass
 
-        # 4. Reactivar Foreign Keys y guardar cambios
         cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
         conn.commit()
         return True
@@ -411,31 +428,40 @@ def render():
                     emp_sel = st.selectbox("Colaborador:", lista_emp_opts)
                     cod_emp_final = emp_sel.split(" - ")[0]
 
-                    direccion_in = st.text_input("Dirección de Correo Electrónico:", placeholder="ejemplo@agrocisa.com o usuario@gmail.com")
-                    pass_in = st.text_input("Contraseña del Correo:", type="password", placeholder="Ingresa la contraseña del correo")
+                    direccion_in = st.text_input("Dirección de Correo Electrónico*:", placeholder="ejemplo@agrocisa.com o usuario@gmail.com")
+                    alias_in = st.text_input("Alias del Correo (Opcional):", placeholder="Ej. ventas, compras, aux.contable")
 
                 with c2:
                     tipo_nom = st.selectbox("Tipo de Correo:", list(dict_tipo_correo.keys()))
                     estatus_nom = st.selectbox("Estatus de la Cuenta:", list(dict_est_correos.keys()))
+                    pass_in = st.text_input("Contraseña del Correo:", type="password", placeholder="Ingresa la contraseña del correo")
+
+                comentarios_in = st.text_input("Comentarios / Observaciones adicionales:", placeholder="Ej. Correo compartido, redireccionado a gerencia...")
 
                 btn_guardar_correo = st.form_submit_button("💾 Guardar Nueva Cuenta de Correo", type="primary")
 
                 if btn_guardar_correo:
-                    if not direccion_in.strip() or "@" not in direccion_in:
+                    dir_limpia = direccion_in.strip().lower()
+                    if not dir_limpia or "@" not in dir_limpia:
                         st.warning("⚠️ Ingresa una dirección de correo válida.")
-                    elif existe_correo_duplicado(direccion_in):
-                        st.error(f"⛔ El correo `{direccion_in.strip().lower()}` ya está registrado en la base de datos.")
                     else:
-                        if guardar_correo_bdd(
-                            id_correo=None,
-                            codigo_emp=cod_emp_final,
-                            direccion=direccion_in,
-                            pass_val=pass_in.strip(),
-                            id_tipo=int(dict_tipo_correo[tipo_nom]),
-                            id_estatus=int(dict_est_correos[estatus_nom])
-                        ):
-                            st.session_state["mensaje_exito_correo"] = f"🎉 ¡Cuenta `{direccion_in.strip().lower()}` registrada exitosamente!"
-                            st.rerun()
+                        hay_dup, dup_id, dup_cod, dup_nom = verificar_correo_duplicado_info(dir_limpia)
+                        if hay_dup:
+                            colab_txt = f" a {dup_nom} (Cód: {dup_cod})" if dup_nom else ""
+                            st.error(f"⛔ El correo `{dir_limpia}` ya está registrado bajo el ID {dup_id}{colab_txt}.")
+                        else:
+                            if guardar_correo_bdd(
+                                id_correo=None,
+                                codigo_emp=cod_emp_final,
+                                direccion=dir_limpia,
+                                pass_val=pass_in.strip(),
+                                id_tipo=int(dict_tipo_correo[tipo_nom]),
+                                id_estatus=int(dict_est_correos[estatus_nom]),
+                                alias_val=alias_in.strip(),
+                                comentarios_val=comentarios_in.strip()
+                            ):
+                                st.session_state["mensaje_exito_correo"] = f"🎉 ¡Cuenta `{dir_limpia}` registrada exitosamente!"
+                                st.rerun()
 
         else:
             if df_correos.empty:
@@ -457,6 +483,8 @@ def render():
                     emp_codigo_def = str(row_c["codigo_empleado"]).strip().zfill(5) if pd.notna(row_c["codigo_empleado"]) else df_emp["codigo_str"].iloc[0]
                     dir_correo_def = str(row_c["direccion_correo"]) if pd.notna(row_c["direccion_correo"]) else ""
                     pass_correo_def = str(row_c["contrasena"]) if pd.notna(row_c["contrasena"]) else ""
+                    alias_def = str(row_c["alias"]) if pd.notna(row_c["alias"]) else ""
+                    comentarios_def = str(row_c["comentarios"]) if pd.notna(row_c["comentarios"]) else ""
                     tipo_id_def = int(row_c["id_tipo_correo"]) if pd.notna(row_c["id_tipo_correo"]) else list(dict_tipo_correo.values())[0]
                     estatus_id_def = int(row_c["id_estatus_correo"]) if pd.notna(row_c["id_estatus_correo"]) else list(dict_est_correos.values())[0]
 
@@ -475,8 +503,8 @@ def render():
                             emp_sel = st.selectbox("Colaborador:", lista_emp_opts, index=idx_emp_def)
                             cod_emp_final = emp_sel.split(" - ")[0]
 
-                            direccion_in = st.text_input("Dirección de Correo Electrónico:", value=dir_correo_def)
-                            pass_in = st.text_input("Contraseña del Correo:", value=pass_correo_def, type="password")
+                            direccion_in = st.text_input("Dirección de Correo Electrónico*:", value=dir_correo_def)
+                            alias_in = st.text_input("Alias del Correo:", value=alias_def, placeholder="Ej. ventas, compras, aux.contable")
 
                         with c2:
                             idx_tipo_def = list(dict_tipo_correo.values()).index(tipo_id_def) if tipo_id_def in dict_tipo_correo.values() else 0
@@ -485,24 +513,39 @@ def render():
                             idx_est_def = list(dict_est_correos.values()).index(estatus_id_def) if estatus_id_def in dict_est_correos.values() else 0
                             estatus_nom = st.selectbox("Estatus de la Cuenta:", list(dict_est_correos.keys()), index=idx_est_def)
 
+                            pass_in = st.text_input("Contraseña del Correo:", value=pass_correo_def, type="password")
+
+                        comentarios_in = st.text_input("Comentarios / Observaciones adicionales:", value=comentarios_def, placeholder="Ej. Correo compartido, redireccionado...")
+
                         btn_actualizar_correo = st.form_submit_button("💾 Actualizar Cuenta de Correo", type="primary")
 
                         if btn_actualizar_correo:
-                            if not direccion_in.strip() or "@" not in direccion_in:
+                            dir_limpia = direccion_in.strip().lower()
+                            if not dir_limpia or "@" not in dir_limpia:
                                 st.warning("⚠️ Ingresa una dirección de correo válida.")
-                            elif existe_correo_duplicado(direccion_in, id_correo_edit):
-                                st.error(f"⛔ El correo `{direccion_in.strip().lower()}` ya está registrado en la base de datos.")
                             else:
-                                if guardar_correo_bdd(
-                                    id_correo=id_correo_edit,
-                                    codigo_emp=cod_emp_final,
-                                    direccion=direccion_in,
-                                    pass_val=pass_in.strip(),
-                                    id_tipo=int(dict_tipo_correo[tipo_nom]),
-                                    id_estatus=int(dict_est_correos[estatus_nom])
-                                ):
-                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Cuenta `{direccion_in.strip().lower()}` actualizada exitosamente a estatus: **{estatus_nom}**!"
-                                    st.rerun()
+                                # Solo validar duplicados si el usuario cambió el correo original
+                                es_duplicado = False
+                                if dir_limpia != dir_correo_def.strip().lower():
+                                    hay_dup, dup_id, dup_cod, dup_nom = verificar_correo_duplicado_info(dir_limpia, id_correo_edit)
+                                    if hay_dup:
+                                        es_duplicado = True
+                                        colab_txt = f" a {dup_nom} (Cód: {dup_cod})" if dup_nom else ""
+                                        st.error(f"⛔ El correo `{dir_limpia}` ya está asignado en la cuenta ID {dup_id}{colab_txt}.")
+
+                                if not es_duplicado:
+                                    if guardar_correo_bdd(
+                                        id_correo=id_correo_edit,
+                                        codigo_emp=cod_emp_final,
+                                        direccion=dir_limpia,
+                                        pass_val=pass_in.strip(),
+                                        id_tipo=int(dict_tipo_correo[tipo_nom]),
+                                        id_estatus=int(dict_est_correos[estatus_nom]),
+                                        alias_val=alias_in.strip(),
+                                        comentarios_val=comentarios_in.strip()
+                                    ):
+                                        st.session_state["mensaje_exito_correo"] = f"🎉 ¡Cuenta `{dir_limpia}` actualizada exitosamente!"
+                                        st.rerun()
                 else:
                     st.info("👆 Selecciona o escribe una cuenta en el buscador de arriba para cargar sus datos.")
 
@@ -512,7 +555,7 @@ def render():
         if not df_correos.empty:
             f1, f2 = st.columns(2)
             with f1:
-                txt_busqueda = st.text_input("🔍 Buscar correo o colaborador:", placeholder="Ej. Juan, 00595, agrocisa.com")
+                txt_busqueda = st.text_input("🔍 Buscar correo, alias o colaborador:", placeholder="Ej. Juan, ventas, 00595, agrocisa.com")
             with f2:
                 estatus_opts = ["Todos"] + list(dict_est_correos.keys())
                 estatus_sel = st.selectbox("Filtrar por Estatus de Correo:", estatus_opts)
@@ -524,13 +567,15 @@ def render():
                 df_filt = df_filt[
                     df_filt["empleado"].astype(str).str.lower().str.contains(term) |
                     df_filt["codigo_empleado"].astype(str).str.lower().str.contains(term) |
-                    df_filt["direccion_correo"].astype(str).str.lower().str.contains(term)
+                    df_filt["direccion_correo"].astype(str).str.lower().str.contains(term) |
+                    df_filt["alias"].astype(str).str.lower().str.contains(term) |
+                    df_filt["comentarios"].astype(str).str.lower().str.contains(term)
                 ]
 
             if estatus_sel != "Todos":
                 df_filt = df_filt[df_filt["estatus_correo"] == estatus_sel]
 
-            cols_mostrar = ["id_correo", "codigo_empleado", "empleado", "direccion_correo", "tipo_correo", "estatus_correo"]
+            cols_mostrar = ["id_correo", "codigo_empleado", "empleado", "direccion_correo", "alias", "tipo_correo", "estatus_correo", "comentarios"]
             st.dataframe(
                 df_filt[cols_mostrar],
                 use_container_width=True,

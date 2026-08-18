@@ -22,55 +22,6 @@ def limpiar_str(val, defecto=""):
         return defecto
     return v_str
 
-def obtener_columnas_tabla(cursor, tabla):
-    try:
-        cursor.execute(f"SHOW COLUMNS FROM {tabla}")
-        return [row[0] for row in cursor.fetchall()]
-    except Exception:
-        return []
-
-def obtener_catalogo_dict(tabla, col_id, col_nombre):
-    try:
-        conn = obtener_conexion()
-        query = f"SELECT {col_id}, {col_nombre} FROM {tabla} ORDER BY {col_nombre} ASC"
-        df = pd.read_sql(query, conn)
-        conn.close()
-        return dict(zip(df[col_nombre], df[col_id]))
-    except Exception as e:
-        return {}
-
-def obtener_catalogo_estatus_lineas():
-    """Detecta dinámicamente si existe tabla de estatus o usa el mapeo del sistema."""
-    for tabla in ['estatus_linea', 'estatus_lineas']:
-        try:
-            conn = obtener_conexion()
-            cursor = conn.cursor()
-            cursor.execute(f"SHOW TABLES LIKE '{tabla}'")
-            if cursor.fetchone():
-                cols = obtener_columnas_tabla(cursor, tabla)
-                col_id = cols[0]
-                col_nom = cols[1] if len(cols) > 1 else cols[0]
-                for c in cols:
-                    if 'id' in c.lower(): col_id = c
-                    if 'nom' in c.lower() or 'estatus' in c.lower() or 'opcion' in c.lower() or 'desc' in c.lower():
-                        if 'id' not in c.lower(): col_nom = c
-                
-                df = pd.read_sql(f"SELECT {col_id}, {col_nom} FROM {tabla} ORDER BY {col_id}", conn)
-                conn.close()
-                if not df.empty:
-                    return dict(zip(df[col_nom], df[col_id]))
-            conn.close()
-        except Exception:
-            pass
-
-    return {
-        "ASIGNADO": 3,
-        "DISPONIBLE": 4,
-        "VIP": 5,
-        "INACTIVO / BAJA": 2,
-        "SUSPENDIDA": 6
-    }
-
 def notificar_exito(mensaje):
     st.session_state["mensaje_exito_linea"] = mensaje
     st.rerun()
@@ -82,191 +33,132 @@ def generar_excel_bytes(df_exportar, nombre_hoja="Lineas_Telefonicas"):
     buffer.seek(0)
     return buffer
 
-# ==============================================================================
-# OPERACIONES DE BASE DE DATOS ADAPTATIVAS
-# ==============================================================================
-def obtener_lineas_completas_df(dict_est_rev):
+def obtener_catalogo_estatus_lineas():
+    """Consulta la tabla oficial estatus_linea_telefonica directamente de MariaDB."""
     try:
         conn = obtener_conexion()
-        cursor = conn.cursor()
-        cols_reales = obtener_columnas_tabla(cursor, "lineas_telefonicas")
+        if not conn:
+            return {}
+        df = pd.read_sql("SELECT id_estatus_linea, estatus_linea FROM estatus_linea_telefonica ORDER BY id_estatus_linea ASC", conn)
+        conn.close()
+        if not df.empty:
+            return dict(zip(df["estatus_linea"].astype(str), df["id_estatus_linea"].astype(int)))
+        return {}
+    except Exception as e:
+        st.error(f"⚠️ Error al consultar catálogo 'estatus_linea_telefonica': {e}")
+        return {}
 
-        cand_plan = next((c for c in ['plan', 'id_plan', 'nombre_plan', 'tipo_plan', 'plan_tarifario'] if c in cols_reales), None)
-        select_plan = f"COALESCE(CAST(lt.{cand_plan} AS CHAR), '') AS plan" if cand_plan else "'' AS plan"
 
-        cand_gb = next((c for c in ['gb_promocion_2026', 'gb', 'datos_gb'] if c in cols_reales), None)
-        select_gb = f"COALESCE(CAST(lt.{cand_gb} AS CHAR), '') AS gb" if cand_gb else "'' AS gb"
-
-        cand_mpp = next((c for c in ['mpp', 'mpp_folio'] if c in cols_reales), None)
-        select_mpp = f"COALESCE(CAST(lt.{cand_mpp} AS CHAR), '') AS mpp" if cand_mpp else "'' AS mpp"
-
-        cand_knox = next((c for c in ['knox', 'seguridad_knox'] if c in cols_reales), None)
-        if cand_knox:
-            select_knox = f"CASE WHEN lt.{cand_knox} = 1 OR lt.{cand_knox} = '1' OR LOWER(CAST(lt.{cand_knox} AS CHAR)) IN ('si', 'sí', 'true') THEN '🔒 Sí' ELSE '🔓 No' END AS knox_disp, lt.{cand_knox} AS knox"
-        else:
-            select_knox = "'🔓 No' AS knox_disp, 0 AS knox"
-
-        cand_est = next((c for c in ['id_estatus_linea', 'id_estatus', 'id_status'] if c in cols_reales), None)
-        select_est = f"lt.{cand_est} AS id_estatus_linea" if cand_est else "4 AS id_estatus_linea"
-
-        cand_emp = next((c for c in ['codigo_empleado', 'codigo', 'id_empleado'] if c in cols_reales), None)
-        if cand_emp:
-            join_emp = f"LEFT JOIN empleados e ON TRIM(LEADING '0' FROM CAST(lt.{cand_emp} AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))"
-            select_emp = f"lt.{cand_emp} AS codigo_empleado"
-        else:
-            join_emp = "LEFT JOIN empleados e ON 1=0"
-            select_emp = "NULL AS codigo_empleado"
-
-        cand_com = next((c for c in ['comentarios', 'comentario'] if c in cols_reales), None)
-        select_com = f"COALESCE(lt.{cand_com}, '') AS comentarios" if cand_com else "'' AS comentarios"
-
-        cand_obs = next((c for c in ['observaciones', 'observacion'] if c in cols_reales), None)
-        select_obs = f"COALESCE(lt.{cand_obs}, '') AS observaciones" if cand_obs else "'' AS observaciones"
-
-        query = f"""
+# ==============================================================================
+# OPERACIONES BDD: LÍNEAS TELEFÓNICAS
+# ==============================================================================
+def obtener_lineas_completas_df():
+    try:
+        conn = obtener_conexion()
+        query = """
             SELECT 
                 lt.numero,
-                {select_plan},
-                {select_gb},
-                {select_mpp},
-                {select_knox},
-                {select_est},
-                COALESCE(CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno), 'SIN ASIGNAR') AS titular,
-                {select_emp},
-                COALESCE(s.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
-                COALESCE(d.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
-                COALESCE(p.nombre_puesto, 'SIN PUESTO') AS puesto,
-                {select_com},
-                {select_obs}
+                COALESCE(NULLIF(CAST(lt.plan_2026 AS CHAR), ''), NULLIF(CAST(lt.plan_2024 AS CHAR), ''), '') AS plan,
+                COALESCE(NULLIF(CAST(lt.GB_promocion_2026 AS CHAR), ''), NULLIF(CAST(lt.GB_2026 AS CHAR), ''), NULLIF(CAST(lt.GB_2024 AS CHAR), ''), '') AS gb,
+                CASE WHEN lt.is_mpp = 1 OR lt.is_mpp = '1' OR LOWER(CAST(lt.is_mpp AS CHAR)) IN ('si', 'sí', 'true') THEN '🔒 Sí' ELSE '🔓 No' END AS mpp_disp,
+                lt.is_mpp,
+                CASE WHEN lt.knox = 1 OR lt.knox = '1' OR LOWER(CAST(lt.knox AS CHAR)) IN ('si', 'sí', 'true') THEN '🔒 Sí' ELSE '🔓 No' END AS knox_disp,
+                lt.knox,
+                COALESCE(elt.estatus_linea, 'DISPONIBLE') AS estatus_linea,
+                lt.id_estatus_linea,
+                lt.codigo_empleado,
+                COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'SIN ASIGNAR') AS titular,
+                COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
+                COALESCE(dep.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
+                COALESCE(pue.nombre_puesto, 'SIN PUESTO') AS puesto,
+                COALESCE(lt.comentarios, '') AS comentarios,
+                COALESCE(lt.mensualidad_2026, 0.0) AS mensualidad_2026,
+                COALESCE(lt.GB_promocion_2026, 0.0) AS gb_promocion_2026
             FROM lineas_telefonicas lt
-            {join_emp}
-            LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
-            LEFT JOIN departamentos d ON e.id_departamento = d.id_departamento
-            LEFT JOIN puestos p ON e.id_puesto = p.id_puesto
+            LEFT JOIN estatus_linea_telefonica elt ON lt.id_estatus_linea = elt.id_estatus_linea
+            LEFT JOIN empleados emp ON TRIM(LEADING '0' FROM CAST(lt.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(emp.codigo AS CHAR))
+            LEFT JOIN sucursales suc ON emp.id_sucursal = suc.id_sucursal
+            LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
+            LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
             ORDER BY lt.numero ASC
         """
         df = pd.read_sql(query, conn)
         conn.close()
-
-        if not df.empty:
-            df["estatus_linea"] = df["id_estatus_linea"].map(dict_est_rev).fillna("DESCONOCIDO")
-
         return df
     except Exception as e:
         st.error(f"⚠️ Error al consultar líneas telefónicas: {e}")
         return pd.DataFrame()
 
-def guardar_nueva_linea(numero, plan, gb, mpp, knox_val, id_estatus, codigo_emp, comentarios):
+def guardar_nueva_linea_bdd(numero, codigo_emp, id_estatus, is_mpp, knox, plan_2026, mensualidad, gb_2026, gb_promo, comentarios=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
-        cols_reales = obtener_columnas_tabla(cursor, "lineas_telefonicas")
         
-        datos = {}
-        if "numero" in cols_reales:
-            datos["numero"] = str(numero).strip()
-            
-        cand_plan = next((c for c in ['plan', 'id_plan', 'nombre_plan', 'tipo_plan'] if c in cols_reales), None)
-        if cand_plan:
-            datos[cand_plan] = str(plan).strip() or None
-            
-        cand_gb = next((c for c in ['gb_promocion_2026', 'gb', 'datos_gb'] if c in cols_reales), None)
-        if cand_gb:
-            datos[cand_gb] = str(gb).strip() or None
-            
-        cand_mpp = next((c for c in ['mpp', 'mpp_folio'] if c in cols_reales), None)
-        if cand_mpp:
-            datos[cand_mpp] = str(mpp).strip() or None
-            
-        cand_knox = next((c for c in ['knox', 'seguridad_knox'] if c in cols_reales), None)
-        if cand_knox:
-            datos[cand_knox] = knox_val
-            
-        cand_est = next((c for c in ['id_estatus_linea', 'id_estatus', 'id_status'] if c in cols_reales), None)
-        if cand_est:
-            datos[cand_est] = id_estatus
-            
-        cand_emp = next((c for c in ['codigo_empleado', 'codigo', 'id_empleado'] if c in cols_reales), None)
-        if cand_emp:
-            datos[cand_emp] = str(codigo_emp).strip() if codigo_emp else None
-            
-        cand_com = next((c for c in ['comentarios', 'comentario'] if c in cols_reales), None)
-        if cand_com:
-            datos[cand_com] = limpiar_str(comentarios) or None
+        num_clean = str(numero).strip()
+        cod_emp = str(codigo_emp).strip() if codigo_emp else None
+        com_clean = limpiar_str(comentarios) or None
 
-        cols_str = ", ".join(datos.keys())
-        placeholders = ", ".join(["%s"] * len(datos))
-        query = f"INSERT INTO lineas_telefonicas ({cols_str}) VALUES ({placeholders})"
-        cursor.execute(query, tuple(datos.values()))
-        
+        query = """
+            INSERT INTO lineas_telefonicas (
+                numero, codigo_empleado, id_estatus_linea, is_mpp, knox, 
+                plan_2026, mensualidad_2026, GB_2026, GB_promocion_2026, comentarios
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+                codigo_empleado = VALUES(codigo_empleado),
+                id_estatus_linea = VALUES(id_estatus_linea),
+                is_mpp = VALUES(is_mpp),
+                knox = VALUES(knox),
+                plan_2026 = VALUES(plan_2026),
+                mensualidad_2026 = VALUES(mensualidad_2026),
+                GB_2026 = VALUES(GB_2026),
+                GB_promocion_2026 = VALUES(GB_promocion_2026),
+                comentarios = VALUES(comentarios)
+        """
+        cursor.execute(query, (
+            num_clean, cod_emp, int(id_estatus), int(is_mpp), int(knox),
+            str(plan_2026).strip() if plan_2026 else None,
+            float(mensualidad), float(gb_2026), float(gb_promo), com_clean
+        ))
         conn.commit()
         conn.close()
-        return True
+        return True, None
     except Exception as e:
-        st.error(f"⚠️ Error al guardar nueva línea: {e}")
-        return False
+        return False, str(e)
 
-def actualizar_linea(numero, plan, gb, mpp, knox_val, id_estatus, codigo_emp, comentarios, observaciones=""):
+def actualizar_linea_bdd(num_viejo, num_nuevo, codigo_emp, id_estatus, is_mpp, knox, plan_2026, mensualidad, gb_2026, gb_promo, comentarios=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
-        cols_reales = obtener_columnas_tabla(cursor, "lineas_telefonicas")
         
-        updates = []
-        valores = []
-        
-        cand_plan = next((c for c in ['plan', 'id_plan', 'nombre_plan', 'tipo_plan'] if c in cols_reales), None)
-        if cand_plan:
-            updates.append(f"{cand_plan} = %s")
-            valores.append(str(plan).strip() or None)
-            
-        cand_gb = next((c for c in ['gb_promocion_2026', 'gb', 'datos_gb'] if c in cols_reales), None)
-        if cand_gb:
-            updates.append(f"{cand_gb} = %s")
-            valores.append(str(gb).strip() or None)
-            
-        cand_mpp = next((c for c in ['mpp', 'mpp_folio'] if c in cols_reales), None)
-        if cand_mpp:
-            updates.append(f"{cand_mpp} = %s")
-            valores.append(str(mpp).strip() or None)
-            
-        cand_knox = next((c for c in ['knox', 'seguridad_knox'] if c in cols_reales), None)
-        if cand_knox:
-            updates.append(f"{cand_knox} = %s")
-            valores.append(knox_val)
-            
-        cand_est = next((c for c in ['id_estatus_linea', 'id_estatus', 'id_status'] if c in cols_reales), None)
-        if cand_est:
-            updates.append(f"{cand_est} = %s")
-            valores.append(id_estatus)
-            
-        cand_emp = next((c for c in ['codigo_empleado', 'codigo', 'id_empleado'] if c in cols_reales), None)
-        if cand_emp:
-            updates.append(f"{cand_emp} = %s")
-            valores.append(str(codigo_emp).strip() if codigo_emp else None)
-            
-        cand_com = next((c for c in ['comentarios', 'comentario'] if c in cols_reales), None)
-        if cand_com:
-            updates.append(f"{cand_com} = %s")
-            valores.append(limpiar_str(comentarios) or None)
-            
-        cand_obs = next((c for c in ['observaciones', 'observacion'] if c in cols_reales), None)
-        if cand_obs:
-            updates.append(f"{cand_obs} = %s")
-            valores.append(limpiar_str(observaciones) or None)
-            
-        if updates:
-            set_str = ", ".join(updates)
-            query = f"UPDATE lineas_telefonicas SET {set_str} WHERE numero = %s"
-            valores.append(str(numero).strip())
-            cursor.execute(query, tuple(valores))
-            conn.commit()
+        num_v = str(num_viejo).strip()
+        num_n = str(num_nuevo).strip()
+        cod_emp = str(codigo_emp).strip() if codigo_emp else None
+        com_clean = limpiar_str(comentarios) or None
 
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+
+        query = """
+            UPDATE lineas_telefonicas
+            SET numero = %s, codigo_empleado = %s, id_estatus_linea = %s, is_mpp = %s, knox = %s,
+                plan_2026 = %s, mensualidad_2026 = %s, GB_2026 = %s, GB_promocion_2026 = %s, comentarios = %s
+            WHERE numero = %s
+        """
+        cursor.execute(query, (
+            num_n, cod_emp, int(id_estatus), int(is_mpp), int(knox),
+            str(plan_2026).strip() if plan_2026 else None,
+            float(mensualidad), float(gb_2026), float(gb_promo), com_clean, num_v
+        ))
+
+        if num_v != num_n:
+            cursor.execute("UPDATE responsivas_celulares SET numero = %s WHERE numero = %s", (num_n, num_v))
+            cursor.execute("UPDATE inventario_celulares SET numero = %s WHERE numero = %s", (num_n, num_v))
+
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
+        conn.commit()
         conn.close()
-        return True
+        return True, None
     except Exception as e:
-        st.error(f"⚠️ Error al actualizar línea: {e}")
-        return False
+        return False, str(e)
 
 # ==============================================================================
 # RENDER PRINCIPAL
@@ -276,234 +168,262 @@ def render():
     st.title("📞 Gestión y Edición de Líneas Telefónicas")
 
     if "mensaje_exito_linea" in st.session_state:
-        st.success(f"✅ {st.session_state['mensaje_exito_linea']}")
+        st.success(st.session_state["mensaje_exito_linea"])
         del st.session_state["mensaje_exito_linea"]
 
     dict_est_lineas = obtener_catalogo_estatus_lineas()
-    dict_est_rev = {v: k for k, v in dict_est_lineas.items()}
-    defaults_fallback = {1: "ASIGNADO", 2: "INACTIVO / BAJA", 3: "ASIGNADO", 4: "DISPONIBLE", 5: "VIP", 6: "SUSPENDIDA"}
-    for k_f, v_f in defaults_fallback.items():
-        if k_f not in dict_est_rev:
-            dict_est_rev[k_f] = v_f
 
-    df_lineas = obtener_lineas_completas_df(dict_est_rev)
-    
+    # Cargar empleados activos para asignación
     dict_empleados = {}
     try:
         conn = obtener_conexion()
-        df_e = pd.read_sql("SELECT codigo, CONCAT_WS(' ', nombre, apellido_paterno, apellido_materno) AS nom FROM empleados WHERE id_estatus_empleado = 1 ORDER BY nom ASC", conn)
+        df_e = pd.read_sql("""
+            SELECT codigo, CONCAT_WS(' ', nombre, apellido_paterno, apellido_materno) AS nom, s.nombre_sucursal AS sucursal
+            FROM empleados e
+            LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
+            WHERE e.id_estatus_empleado = 1
+            ORDER BY nom ASC
+        """, conn)
         conn.close()
         for _, r in df_e.iterrows():
-            dict_empleados[f"{str(r['codigo']).zfill(5)} - {r['nom']}"] = str(r['codigo']).strip()
+            dict_empleados[f"{str(r['codigo']).zfill(5)} - {r['nom']} ({r['sucursal']})"] = str(r['codigo']).strip()
     except Exception:
         pass
 
     tab_cat, tab_add, tab_edit = st.tabs([
         "📋 Catálogo General de Líneas",
         "➕ Registrar Nueva Línea",
-        "✏️ Editar Línea / Cambiar Estatus VIP"
+        "✏️ Editar Línea / Cambiar Estatus"
     ])
 
     # --------------------------------------------------------------------------
-    # TAB 1: CONSULTA CON AUTOCOMPLETADO
+    # TAB 1: CATÁLOGO GENERAL
     # --------------------------------------------------------------------------
     with tab_cat:
+        df_lineas = obtener_lineas_completas_df()
+        
         if not df_lineas.empty:
-            opts_auto_lineas = [
-                f"{r['numero']} | {r['titular']} | [{r['estatus_linea']}] | Plan: {r['plan'] or 'S/P'} ({r['sucursal']})"
-                for _, r in df_lineas.iterrows()
-            ]
-
             c_auto, c_est = st.columns([2, 1])
             with c_auto:
-                sel_auto_linea = st.selectbox(
+                opts_auto = [
+                    f"{r['numero']} | {r['titular']} ({r['sucursal']}) [{r['estatus_linea']}]"
+                    for _, r in df_lineas.iterrows()
+                ]
+                sel_auto = st.selectbox(
                     "🔍 Autocompletar por Número o Titular:",
-                    opts_auto_lineas,
+                    opts_auto,
                     index=None,
                     placeholder="🔍 Teclea aquí el número telefónico, titular o sucursal...",
-                    key="sel_auto_linea_cat"
+                    key="sel_auto_lineas_v3"
                 )
+
             with c_est:
                 opts_est = ["Todos"] + sorted(list(df_lineas["estatus_linea"].dropna().unique()))
-                est_sel = st.selectbox("Filtrar por Estatus de Línea:", opts_est, key="est_f_lineas")
+                est_sel = st.selectbox("Filtrar por Estatus de Línea:", opts_est, key="filtro_est_lineas_v3")
 
-            c_txt, c_suc = st.columns([2, 1])
-            with c_txt:
-                txt_busq = st.text_input("Búsqueda libre:", placeholder="Ej. Juan, 3931234567, SIN ASIGNAR, Morelia...", key="txt_f_lineas")
+            c_busq, c_suc = st.columns([2, 1])
+            with c_busq:
+                txt_busq = st.text_input("Búsqueda libre:", placeholder="Ej. Juan, 3931234567, SIN ASIGNAR, Morelia...", key="txt_busq_lineas_v3")
             with c_suc:
                 opts_suc = ["Todas"] + sorted(list(df_lineas["sucursal"].dropna().unique()))
-                suc_sel = st.selectbox("Filtrar por Sucursal:", opts_suc, key="suc_f_lineas")
+                suc_sel = st.selectbox("Filtrar por Sucursal:", opts_suc, key="suc_f_lineas_v3")
 
-            df_filtrado = df_lineas.copy()
+            df_filt = df_lineas.copy()
 
-            if sel_auto_linea:
-                num_sel = sel_auto_linea.split(" | ")[0].strip()
-                df_filtrado = df_filtrado[df_filtrado["numero"].astype(str).str.strip() == num_sel]
+            if sel_auto:
+                num_sel = sel_auto.split(" | ")[0].strip()
+                df_filt = df_filt[df_filt["numero"].astype(str) == num_sel]
             else:
                 if est_sel != "Todos":
-                    df_filtrado = df_filtrado[df_filtrado["estatus_linea"] == est_sel]
+                    df_filt = df_filt[df_filt["estatus_linea"] == est_sel]
+
                 if suc_sel != "Todas":
-                    df_filtrado = df_filtrado[df_filtrado["sucursal"] == suc_sel]
+                    df_filt = df_filt[df_filt["sucursal"] == suc_sel]
+
                 if txt_busq.strip():
                     term = txt_busq.strip().lower()
-                    df_filtrado = df_filtrado[
-                        df_filtrado["numero"].astype(str).str.lower().str.contains(term) |
-                        df_filtrado["titular"].astype(str).str.lower().str.contains(term) |
-                        df_filtrado["sucursal"].astype(str).str.lower().str.contains(term) |
-                        df_filtrado["departamento"].astype(str).str.lower().str.contains(term) |
-                        df_filtrado["puesto"].astype(str).str.lower().str.contains(term) |
-                        df_filtrado["comentarios"].astype(str).str.lower().str.contains(term)
-                    ]
+                    cols_str = ["numero", "titular", "sucursal", "departamento", "puesto", "comentarios", "plan"]
+                    mascara = pd.Series(False, index=df_filt.index)
+                    for col in cols_str:
+                        mascara |= df_filt[col].astype(str).str.lower().str.contains(term, na=False)
+                    df_filt = df_filt[mascara]
 
-            cols_mostrar = ["numero", "plan", "gb", "mpp", "knox_disp", "estatus_linea", "titular", "sucursal", "comentarios"]
+            cols_view = ["numero", "plan", "gb", "mpp_disp", "knox_disp", "estatus_linea", "titular", "sucursal", "comentarios"]
             st.dataframe(
-                df_filtrado[cols_mostrar].rename(columns={"knox_disp": "Knox", "mpp": "MPP"}),
+                df_filt[cols_view].rename(columns={
+                    "numero": "Número",
+                    "plan": "Plan",
+                    "gb": "GB",
+                    "mpp_disp": "MPP",
+                    "knox_disp": "Knox",
+                    "estatus_linea": "Estatus",
+                    "titular": "Titular Asignado",
+                    "sucursal": "Sucursal",
+                    "comentarios": "Comentarios"
+                }),
                 use_container_width=True,
                 hide_index=True
             )
 
-            c_inf, c_btn = st.columns([3, 1])
-            with c_inf:
-                st.caption(f"Mostrando **{len(df_filtrado)}** de **{len(df_lineas)}** líneas encontradas.")
-            with c_btn:
+            col_inf, col_btn = st.columns([3, 1])
+            with col_inf:
+                st.caption(f"Mostrando **{len(df_filt)}** de **{len(df_lineas)}** líneas encontradas.")
+            with col_btn:
                 st.download_button(
                     label="📊 Exportar a Excel (.xlsx)",
-                    data=generar_excel_bytes(df_filtrado[cols_mostrar], "Lineas_Telefonicas"),
+                    data=generar_excel_bytes(df_filt, "Lineas_Telefonicas"),
                     file_name="Lineas_Telefonicas_AGROCISA.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     type="primary",
                     use_container_width=True
                 )
         else:
-            st.info("No hay líneas telefónicas registradas en el sistema.")
+            st.info("No hay líneas telefónicas registradas en la base de datos.")
 
     # --------------------------------------------------------------------------
     # TAB 2: REGISTRAR NUEVA LÍNEA
     # --------------------------------------------------------------------------
     with tab_add:
         st.subheader("➕ Alta de Nueva Línea Telefónica")
-        with st.form("form_nueva_linea"):
-            c1, c2, c3 = st.columns(3)
+        with st.form("form_add_linea_v3"):
+            c1, c2 = st.columns(2)
             with c1:
-                nuevo_num = st.text_input("Número Telefónico (10 dígitos)*:", placeholder="Ej. 3931234567")
-                plan_in = st.text_input("Plan Contratado:", placeholder="Ej. 1, 5, Telcel Plus...")
-            with c2:
-                gb_in = st.text_input("GB Incluidos / Promoción:", placeholder="Ej. 6, 9, 45...")
-                mpp_in = st.text_input("MPP / Folio:", placeholder="Ej. MPP-12345")
-            with c3:
-                knox_check = st.checkbox("¿Tiene Knox / Seguridad Corporativa?", value=False)
+                num_in = st.text_input("Número Telefónico (10 dígitos)*:", placeholder="Ej. 3931234567")
+                
+                lista_emp_add = ["SIN ASIGNAR (Línea Libre / Vacante)"] + list(dict_empleados.keys())
+                emp_sel_add = st.selectbox("Colaborador Asignado:", lista_emp_add)
+                
                 id_est_def = dict_est_lineas.get("DISPONIBLE", 4)
                 idx_est = list(dict_est_lineas.values()).index(id_est_def) if id_est_def in dict_est_lineas.values() else 0
-                est_sel_add = st.selectbox("Estatus Inicial:", list(dict_est_lineas.keys()), index=idx_est)
+                est_sel_add = st.selectbox("Estatus de la Línea*:", list(dict_est_lineas.keys()), index=idx_est)
 
-            st.divider()
-            c_emp, c_com = st.columns(2)
-            with c_emp:
-                opts_emp = ["-- Sin Asignar / Vacante --"] + list(dict_empleados.keys())
-                emp_sel_add = st.selectbox("Titular / Asignado Inicial (Opcional):", opts_emp)
-                cod_emp_add = dict_empleados[emp_sel_add] if emp_sel_add != "-- Sin Asignar / Vacante --" else None
-            with c_com:
-                com_add = st.text_area("Comentarios de la Línea:", placeholder="Ej. Chip nuevo, renovación, etc.")
+            with c2:
+                plan_in = st.text_input("Plan Telcel (ej. 4, 5, BASE, Plus 4):", value="4")
+                mens_in = st.number_input("Mensualidad ($ MXN):", min_value=0.0, value=599.0, step=50.0)
+                gb_in = st.number_input("GB Base del Plan:", min_value=0.0, value=15.0, step=1.0)
+                gb_p_in = st.number_input("GB Promoción 2026:", min_value=0.0, value=22.5, step=1.0)
 
-            btn_guardar_nueva = st.form_submit_button("💾 Guardar Línea Telefónica", type="primary")
+            c3, c4 = st.columns(2)
+            with c3:
+                mpp_check = st.checkbox("¿Tiene MPP (Módulo de Protección Personal)?", value=False)
+            with c4:
+                knox_check = st.checkbox("¿Tiene Knox / Administrador?", value=False)
 
-            if btn_guardar_nueva:
-                if not nuevo_num.strip() or len(nuevo_num.strip()) < 10:
-                    st.warning("⚠️ Ingresa un número telefónico válido de 10 dígitos.")
+            com_in = st.text_area("Comentarios / Observaciones de la Línea:", placeholder="Ej. Línea temporal, módem, directivo...")
+
+            btn_add = st.form_submit_button("💾 Guardar Línea Telefónica", type="primary")
+
+            if btn_add:
+                if not num_in.strip() or len(num_in.strip()) < 10:
+                    st.warning("⚠️ Ingresa un número telefónico válido a 10 dígitos.")
                 else:
-                    knox_val = 1 if knox_check else 0
-                    if guardar_nueva_linea(
-                        numero=nuevo_num,
-                        plan=plan_in,
-                        gb=gb_in,
-                        mpp=mpp_in,
-                        knox_val=knox_val,
+                    cod_final = None
+                    if emp_sel_add != "SIN ASIGNAR (Línea Libre / Vacante)":
+                        cod_final = dict_empleados[emp_sel_add]
+
+                    ok, err_msg = guardar_nueva_linea_bdd(
+                        numero=num_in,
+                        codigo_emp=cod_final,
                         id_estatus=dict_est_lineas[est_sel_add],
-                        codigo_emp=cod_emp_add,
-                        comentarios=com_add
-                    ):
-                        notificar_exito(f"¡Línea {nuevo_num} dada de alta con éxito!")
+                        is_mpp=1 if mpp_check else 0,
+                        knox=1 if knox_check else 0,
+                        plan_2026=plan_in.strip(),
+                        mensualidad=mens_in,
+                        gb_2026=gb_in,
+                        gb_promo=gb_p_in,
+                        comentarios=com_in
+                    )
+                    if ok:
+                        st.session_state["mensaje_exito_linea"] = f"🎉 ¡Línea `{num_in.strip()}` registrada exitosamente!"
+                        st.rerun()
+                    else:
+                        st.error(f"⛔ Error al registrar línea: {err_msg}")
 
     # --------------------------------------------------------------------------
-    # TAB 3: EDITAR LÍNEA / CAMBIAR ESTATUS VIP
+    # TAB 3: EDITAR LÍNEA / MODIFICAR
     # --------------------------------------------------------------------------
     with tab_edit:
-        st.subheader("✏️ Modificación y Configuración de Líneas")
-        if not df_lineas.empty:
-            opts_lineas_edit = [
-                f"{r['numero']} | {r['titular']} | [{r['estatus_linea']}] | Plan: {r['plan'] or 'S/P'} ({r['sucursal']})"
-                for _, r in df_lineas.iterrows()
+        df_lineas_ed = obtener_lineas_completas_df()
+        if not df_lineas_ed.empty:
+            opts_ed = [
+                f"{r['numero']} | {r['titular']} ({r['sucursal']}) [{r['estatus_linea']}]"
+                for _, r in df_lineas_ed.iterrows()
             ]
-
-            linea_sel_edit = st.selectbox(
-                "Selecciona o teclea la línea a modificar:",
-                opts_lineas_edit,
+            sel_linea_edit = st.selectbox(
+                "Selecciona o teclea la línea a editar:",
+                opts_ed,
                 index=None,
-                placeholder="🔍 Teclea aquí el número o titular a modificar...",
-                key="sel_linea_edit_auto"
+                placeholder="🔍 Teclea aquí el número telefónico para editar...",
+                key="sel_linea_edit_v3"
             )
 
-            if linea_sel_edit:
-                num_editar = linea_sel_edit.split(" | ")[0].strip()
-                r = df_lineas[df_lineas["numero"].astype(str).str.strip() == num_editar].iloc[0]
+            if sel_linea_edit:
+                num_edit_orig = sel_linea_edit.split(" | ")[0].strip()
+                r_linea = df_lineas_ed[df_lineas_ed["numero"].astype(str) == num_edit_orig].iloc[0]
 
                 st.divider()
-                with st.form(f"form_edicion_linea_{num_editar}"):
-                    c1, c2, c3 = st.columns(3)
+                with st.form(f"form_edit_linea_v3_{num_edit_orig}"):
+                    c1, c2 = st.columns(2)
                     with c1:
-                        st.text_input("Número Telefónico:", value=str(r["numero"]), disabled=True)
-                        e_plan = st.text_input("Plan:", value=limpiar_str(r["plan"]))
-                    with c2:
-                        e_gb = st.text_input("GB:", value=limpiar_str(r["gb"]))
-                        e_mpp = st.text_input("MPP:", value=limpiar_str(r["mpp"]))
-                    with c3:
-                        knox_actual = bool(r["knox"] == 1 or r["knox"] == '1' or str(r["knox"]).lower() == 'si')
-                        e_knox = st.checkbox("¿Tiene Knox / Seguridad?", value=knox_actual)
+                        num_mod_in = st.text_input("Número Telefónico (Identificador):", value=str(r_linea["numero"]))
                         
-                        idx_est_act = list(dict_est_lineas.values()).index(r["id_estatus_linea"]) if r["id_estatus_linea"] in dict_est_lineas.values() else 0
-                        e_est = st.selectbox("Estatus de la Línea (VIP, Asignado, etc.):", list(dict_est_lineas.keys()), index=idx_est_act)
-
-                    st.divider()
-                    c_emp_e, c_com_e = st.columns(2)
-                    with c_emp_e:
-                        opts_emp_e = ["-- Sin Asignar / Vacante --"] + list(dict_empleados.keys())
-                        cod_act_clean = str(r["codigo_empleado"]).strip().zfill(5) if r["codigo_empleado"] else None
+                        lista_emp_ed = ["SIN ASIGNAR (Línea Libre / Vacante)"] + list(dict_empleados.keys())
                         
-                        idx_emp_actual = 0
-                        if cod_act_clean:
-                            for idx_i, (k_nom, v_cod) in enumerate(dict_empleados.items(), start=1):
-                                if v_cod.zfill(5) == cod_act_clean:
-                                    idx_emp_actual = idx_i
+                        idx_emp = 0
+                        if pd.notna(r_linea["codigo_empleado"]) and str(r_linea["codigo_empleado"]).strip():
+                            cod_target = str(r_linea["codigo_empleado"]).strip().lstrip("0")
+                            for idx_k, (k_nom, v_cod) in enumerate(dict_empleados.items(), start=1):
+                                if v_cod.lstrip("0") == cod_target:
+                                    idx_emp = idx_k
                                     break
 
-                        e_emp_sel = st.selectbox("Titular / Colaborador Asignado:", opts_emp_e, index=idx_emp_actual)
-                        e_cod_emp = dict_empleados[e_emp_sel] if e_emp_sel != "-- Sin Asignar / Vacante --" else None
+                        emp_sel_ed = st.selectbox("Colaborador Asignado:", lista_emp_ed, index=idx_emp)
+                        
+                        # Estatus actual exacto
+                        est_actual_nom = r_linea["estatus_linea"]
+                        idx_est_ed = list(dict_est_lineas.keys()).index(est_actual_nom) if est_actual_nom in dict_est_lineas else 0
+                        est_sel_ed = st.selectbox("Estatus de la Línea*:", list(dict_est_lineas.keys()), index=idx_est_ed)
 
-                    with c_com_e:
-                        e_com = st.text_area("Comentarios:", value=limpiar_str(r["comentarios"]))
+                    with c2:
+                        plan_mod_in = st.text_input("Plan Telcel:", value=str(r_linea["plan"]) if pd.notna(r_linea["plan"]) else "4")
+                        mens_mod_in = st.number_input("Mensualidad ($ MXN):", min_value=0.0, value=float(r_linea["mensualidad_2026"] or 599.0), step=50.0)
+                        gb_mod_in = st.number_input("GB Base:", min_value=0.0, value=float(r_linea["gb"] or 15.0), step=1.0)
+                        gb_p_mod_in = st.number_input("GB Promoción 2026:", min_value=0.0, value=float(r_linea["gb_promocion_2026"] or 22.5), step=1.0)
 
-                    e_obs = st.text_area("Observaciones Generales / Historial:", value=limpiar_str(r["observaciones"]))
+                    c3, c4 = st.columns(2)
+                    with c3:
+                        mpp_mod = st.checkbox("¿Tiene MPP?", value=bool(r_linea["is_mpp"] == 1 or r_linea["is_mpp"] == '1'))
+                    with c4:
+                        knox_mod = st.checkbox("¿Tiene Knox / Administrador?", value=bool(r_linea["knox"] == 1 or r_linea["knox"] == '1'))
 
-                    btn_guardar_edit = st.form_submit_button("💾 Actualizar Datos de la Línea", type="primary")
+                    com_mod_in = st.text_area("Comentarios / Observaciones:", value=limpiar_str(r_linea["comentarios"]))
 
-                    if btn_guardar_edit:
-                        knox_final = 1 if e_knox else 0
-                        if actualizar_linea(
-                            numero=num_editar,
-                            plan=e_plan,
-                            gb=e_gb,
-                            mpp=e_mpp,
-                            knox_val=knox_final,
-                            id_estatus=dict_est_lineas[e_est],
-                            codigo_emp=e_cod_emp,
-                            comentarios=e_com,
-                            observaciones=e_obs
-                        ):
-                            notificar_exito(f"¡Línea {num_editar} actualizada correctamente!")
-            else:
-                st.info("👆 Selecciona o escribe una línea en el buscador de arriba para cargar sus datos.")
+                    btn_update = st.form_submit_button("💾 Actualizar Línea Telefónica", type="primary")
+
+                    if btn_update:
+                        cod_final_ed = None
+                        if emp_sel_ed != "SIN ASIGNAR (Línea Libre / Vacante)":
+                            cod_final_ed = dict_empleados[emp_sel_ed]
+
+                        ok, err_msg = actualizar_linea_bdd(
+                            num_viejo=num_edit_orig,
+                            num_nuevo=num_mod_in.strip(),
+                            codigo_emp=cod_final_ed,
+                            id_estatus=dict_est_lineas[est_sel_ed],
+                            is_mpp=1 if mpp_mod else 0,
+                            knox=1 if knox_mod else 0,
+                            plan_2026=plan_mod_in.strip(),
+                            mensualidad=mens_mod_in,
+                            gb_2026=gb_mod_in,
+                            gb_promo=gb_p_mod_in,
+                            comentarios=com_mod_in
+                        )
+                        if ok:
+                            st.session_state["mensaje_exito_linea"] = f"🎉 ¡Línea `{num_mod_in.strip()}` actualizada exitosamente con estatus: **{est_sel_ed}**!"
+                            st.rerun()
+                        else:
+                            st.error(f"⛔ Error al actualizar línea: {err_msg}")
         else:
-            st.info("No hay líneas registradas para editar.")
+            st.info("No hay líneas telefónicas registradas para editar.")
 
-# Alias para compatibilidad de invocación en app.py
 render_lineas = render
