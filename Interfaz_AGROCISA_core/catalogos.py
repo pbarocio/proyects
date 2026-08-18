@@ -20,7 +20,9 @@ def obtener_columnas_tabla(cursor, tabla):
     except Exception:
         return []
 
-# Configuración y mapeo de tablas maestras
+# ==============================================================================
+# CONFIGURACIÓN EXACTA DE CATÁLOGOS (ESQUEMA MARIADB REAL)
+# ==============================================================================
 CATALOGOS_CONFIG = {
     "Modelos Celulares": {
         "tabla": "modelos_celulares",
@@ -48,18 +50,25 @@ CATALOGOS_CONFIG = {
         "label": "Nombre del Puesto (ej. Asesor de Ventas, Chofer):",
         "tipo": "simple"
     },
+    "Tipo de Contrato Empleados": {
+        "tabla": "tipo_contrato_empleados",
+        "pk": "id_tipo_contrato",
+        "col_nombre": "tipo_contrato",
+        "label": "Tipo de Contrato (ej. Indeterminado, Determinado, Honorarios):",
+        "tipo": "simple"
+    },
     "Condición de Equipos": {
         "tabla": "condicion",
         "pk": "id_condicion",
         "col_nombre": "condicion_opcion",
-        "label": "Opción de Condición (ej. Excelente, Buenas condiciones):",
+        "label": "Opción de Condición (ej. Excelente, Buenas condiciones, Media vida):",
         "tipo": "simple"
     },
     "Cargadores": {
         "tabla": "cargadores",
         "pk": "id_cargador",
         "col_nombre": "cargador_opcion",
-        "label": "Opción de Cargador (ej. CON Cargador y CON Cable):",
+        "label": "Opción de Cargador (ej. CON Cargador Original y CON Cable):",
         "tipo": "simple"
     },
     "Cajas": {
@@ -83,6 +92,13 @@ CATALOGOS_CONFIG = {
         "label": "Opción de Renovación (ej. SÍ, NO):",
         "tipo": "simple"
     },
+    "Estatus Líneas Telefónicas": {
+        "tabla": "estatus_linea_telefonica",
+        "pk": "id_estatus_linea",
+        "col_nombre": "estatus_linea",
+        "label": "Estatus de Línea (ej. ASIGNADO, DISPONIBLE, V.I.P.):",
+        "tipo": "simple"
+    },
     "Estatus Celulares": {
         "tabla": "estatus_celulares",
         "pk": "id_estatus_celular",
@@ -101,28 +117,35 @@ CATALOGOS_CONFIG = {
         "tabla": "estatus_cpu",
         "pk": "id_estatus_cpu",
         "col_nombre": "estatus_cpu",
-        "label": "Estatus CPU:",
+        "label": "Estatus CPU (ej. DISPONIBLE, ASIGNADO, BAJA):",
         "tipo": "simple"
     },
     "Estatus Monitores": {
         "tabla": "estatus_monitores",
         "pk": "id_estatus_monitor",
         "col_nombre": "estatus_monitor",
-        "label": "Estatus Monitor:",
+        "label": "Estatus Monitor (ej. DISPONIBLE, ASIGNADO):",
         "tipo": "simple"
     },
     "Estatus Tablets": {
         "tabla": "estatus_tablets",
         "pk": "id_estatus_tablet",
         "col_nombre": "estatus_tablet",
-        "label": "Estatus Tablet:",
+        "label": "Estatus Tablet (ej. DISPONIBLE, ASIGNADO):",
         "tipo": "simple"
     },
     "Estatus Empleados": {
         "tabla": "estatus_empleados",
         "pk": "id_estatus_empleado",
         "col_nombre": "estatus_empleado",
-        "label": "Estatus de Empleado (ej. ACTIVO, BAJA):",
+        "label": "Estatus de Empleado (ej. ACTIVO, INACTIVO, BAJA):",
+        "tipo": "simple"
+    },
+    "Estatus Correos Electrónicos": {
+        "tabla": "estatus_correos_electronicos",
+        "pk": "id_estatus_correo",
+        "col_nombre": "estatus_correo",
+        "label": "Estatus de Cuenta de Correo (ej. ACTIVO, INACTIVO):",
         "tipo": "simple"
     },
     "Tipos de Correos": {
@@ -131,12 +154,24 @@ CATALOGOS_CONFIG = {
         "col_nombre": "tipo_correo",
         "label": "Tipo de Correo (ej. Corporativo, Gmail):",
         "tipo": "simple"
+    },
+    "Estatus Responsivas": {
+        "tabla": "estatus_responsivas",
+        "pk": "id_status",
+        "col_nombre": "estatus_responsiva",
+        "label": "Estatus de Responsiva (ej. ACTIVA, CANCELADA):",
+        "tipo": "simple"
     }
 }
 
+# ==============================================================================
+# OPERACIONES BDD
+# ==============================================================================
 def consultar_tabla_catalogo(tabla, pk):
     try:
         conn = obtener_conexion()
+        if not conn:
+            return pd.DataFrame(), "No hay conexión con la base de datos."
         df = pd.read_sql(f"SELECT * FROM {tabla} ORDER BY {pk} ASC", conn)
         conn.close()
         return df, None
@@ -193,7 +228,7 @@ def render():
 
     # Header
     st.markdown("### 📁 Gestor de Catálogos (`agrocisa_core`)")
-    st.caption("Administración de tablas maestras y opciones de llenado.")
+    st.caption("Administración directa de tablas maestras de la base de datos.")
 
     # Banner persistente de éxito tras el rerun
     if "mensaje_exito_cat" in st.session_state:
@@ -222,12 +257,12 @@ def render():
     with col_tabla:
         st.markdown(f"#### 📋 Tabla `{tabla_nom}`")
         if err:
-            st.error(f"Error al cargar el catálogo: {err}")
+            st.error(f"Error al cargar el catálogo `{tabla_nom}`: {err}")
         elif not df_cat.empty:
             st.dataframe(df_cat, use_container_width=True, hide_index=True)
-            st.caption(f"Total de registros: **{len(df_cat)}**")
+            st.caption(f"Total de registros en base de datos: **{len(df_cat)}**")
         else:
-            st.info("La tabla no contiene registros actualmente.")
+            st.info(f"La tabla `{tabla_nom}` no contiene registros actualmente.")
 
     # --------------------------------------------------------------------------
     # COLUMNA DERECHA: FORMULARIO DE ALTA
@@ -249,7 +284,7 @@ def render():
                     else:
                         ok, err_msg = guardar_modelo_celular(marca_mod_in, precio_in, ano_in)
                         if ok:
-                            st.session_state["mensaje_exito_cat"] = f"🎉 ¡Modelo `{marca_mod_in.strip()}` registrado exitosamente en el catálogo!"
+                            st.session_state["mensaje_exito_cat"] = f"🎉 ¡Modelo `{marca_mod_in.strip()}` registrado exitosamente en `{tabla_nom}`!"
                             st.rerun()
                         else:
                             st.error(f"⛔ Error al registrar modelo: {err_msg}")
@@ -269,7 +304,7 @@ def render():
                     else:
                         ok, err_msg = guardar_registro_simple(tabla_nom, col_nombre, valor_in)
                         if ok:
-                            st.session_state["mensaje_exito_cat"] = f"🎉 ¡Registro `{valor_in.strip()}` agregado exitosamente a `{cat_seleccionado}`!"
+                            st.session_state["mensaje_exito_cat"] = f"🎉 ¡Registro `{valor_in.strip()}` agregado exitosamente a `{tabla_nom}`!"
                             st.rerun()
                         else:
                             st.error(f"⛔ Error al registrar en `{tabla_nom}`: {err_msg}")
