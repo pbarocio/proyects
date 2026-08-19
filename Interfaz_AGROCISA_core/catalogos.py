@@ -13,17 +13,17 @@ def aplicar_estilos_pantalla():
         </style>
     """, unsafe_allow_html=True)
 
-def obtener_columnas_tabla(cursor, tabla):
-    try:
-        cursor.execute(f"SHOW COLUMNS FROM {tabla}")
-        return [row[0] for row in cursor.fetchall()]
-    except Exception:
-        return []
-
 # ==============================================================================
 # CONFIGURACIÓN EXACTA DE CATÁLOGOS (ESQUEMA MARIADB REAL)
 # ==============================================================================
 CATALOGOS_CONFIG = {
+    "Condición de Equipos": {
+        "tabla": "condicion",
+        "pk": "id_condicion",
+        "col_nombre": "condicion_opcion",
+        "label": "Nueva opción de Condición (ej. Excelente, Dañado):",
+        "tipo": "simple"
+    },
     "Modelos Celulares": {
         "tabla": "modelos_celulares",
         "pk": "id_modelo",
@@ -54,14 +54,7 @@ CATALOGOS_CONFIG = {
         "tabla": "tipo_contrato_empleados",
         "pk": "id_tipo_contrato",
         "col_nombre": "tipo_contrato",
-        "label": "Tipo de Contrato (ej. Indeterminado, Determinado, Honorarios):",
-        "tipo": "simple"
-    },
-    "Condición de Equipos": {
-        "tabla": "condicion",
-        "pk": "id_condicion",
-        "col_nombre": "condicion_opcion",
-        "label": "Opción de Condición (ej. Excelente, Buenas condiciones, Media vida):",
+        "label": "Tipo de Contrato (ej. INTERNO, EXTERNO):",
         "tipo": "simple"
     },
     "Cargadores": {
@@ -82,7 +75,7 @@ CATALOGOS_CONFIG = {
         "tabla": "hdd_tipo",
         "pk": "id_hdd_tipo",
         "col_nombre": "hdd_opcion",
-        "label": "Tipo de Disco (ej. SSD, M.2 NVMe, HDD):",
+        "label": "Tipo de Disco (ej. SSD, M2VMe, HDD):",
         "tipo": "simple"
     },
     "Renovación": {
@@ -152,14 +145,14 @@ CATALOGOS_CONFIG = {
         "tabla": "tipos_correos_electronicos",
         "pk": "id_tipo_correo",
         "col_nombre": "tipo_correo",
-        "label": "Tipo de Correo (ej. Corporativo, Gmail):",
+        "label": "Tipo de Correo (ej. CORPORATIVO, GMAIL):",
         "tipo": "simple"
     },
     "Estatus Responsivas": {
         "tabla": "estatus_responsivas",
-        "pk": "id_status",
+        "pk": "id_estatus_responsiva",
         "col_nombre": "estatus_responsiva",
-        "label": "Estatus de Responsiva (ej. ACTIVA, CANCELADA):",
+        "label": "Estatus de Responsiva (ej. ACTIVO, INACTIVO):",
         "tipo": "simple"
     }
 }
@@ -177,6 +170,21 @@ def consultar_tabla_catalogo(tabla, pk):
         return df, None
     except Exception as e:
         return pd.DataFrame(), str(e)
+
+def existe_registro_simple(tabla, col_nombre, valor):
+    """Verifica si ya existe el valor para evitar error de UNIQUE en MariaDB."""
+    try:
+        conn = obtener_conexion()
+        if not conn:
+            return False
+        cursor = conn.cursor()
+        query = f"SELECT COUNT(*) FROM {tabla} WHERE LOWER(TRIM({col_nombre})) = LOWER(TRIM(%s))"
+        cursor.execute(query, (str(valor).strip(),))
+        cnt = cursor.fetchone()[0]
+        conn.close()
+        return cnt > 0
+    except Exception:
+        return False
 
 def guardar_registro_simple(tabla, col_nombre, valor):
     conn = obtener_conexion()
@@ -200,17 +208,19 @@ def guardar_modelo_celular(marca_modelo, precio, ano_renovacion):
         return False, "No se pudo abrir la conexión a la base de datos."
     cursor = conn.cursor()
     try:
-        cols = obtener_columnas_tabla(cursor, "modelos_celulares")
-        col_ano = next((c for c in ['ano_renovacion', 'anio_renovacion', 'anio', 'ano'] if c in cols), 'ano_renovacion')
-        
-        query = f"""
-            INSERT INTO modelos_celulares (marca_modelo, precio, {col_ano})
+        cursor.execute("SELECT COUNT(*) FROM modelos_celulares WHERE LOWER(TRIM(marca_modelo)) = LOWER(TRIM(%s))", (str(marca_modelo).strip(),))
+        if cursor.fetchone()[0] > 0:
+            conn.close()
+            return False, f"El modelo '{marca_modelo.strip()}' ya existe en el catálogo."
+
+        query = """
+            INSERT INTO modelos_celulares (marca_modelo, precio, ano_renovacion)
             VALUES (%s, %s, %s)
         """
         cursor.execute(query, (
             str(marca_modelo).strip(),
-            float(precio),
-            str(ano_renovacion).strip() if ano_renovacion else None
+            str(int(float(precio))),
+            str(ano_renovacion).strip() if ano_renovacion else "2026"
         ))
         conn.commit()
         conn.close()
@@ -276,15 +286,16 @@ def render():
                 precio_in = st.number_input("Precio ($ MXN):", min_value=0.0, value=0.0, step=500.0)
                 ano_in = st.text_input("Año de Renovación (ej. 2026):", value="2026")
 
-                btn_guardar_mod = st.form_submit_button("💾 Guardar Modelo", type="primary", use_container_width=True)
+                btn_guardar_mod = st.form_submit_button(f"💾 Guardar en {cat_seleccionado}", type="primary", use_container_width=True)
 
                 if btn_guardar_mod:
-                    if not marca_mod_in.strip():
+                    val_clean = marca_mod_in.strip()
+                    if not val_clean:
                         st.warning("⚠️ El nombre de Marca / Modelo es obligatorio.")
                     else:
-                        ok, err_msg = guardar_modelo_celular(marca_mod_in, precio_in, ano_in)
+                        ok, err_msg = guardar_modelo_celular(val_clean, precio_in, ano_in)
                         if ok:
-                            st.session_state["mensaje_exito_cat"] = f"🎉 ¡Modelo `{marca_mod_in.strip()}` registrado exitosamente en `{tabla_nom}`!"
+                            st.session_state["mensaje_exito_cat"] = f"🎉 ¡Modelo `{val_clean}` registrado exitosamente en `{tabla_nom}`!"
                             st.rerun()
                         else:
                             st.error(f"⛔ Error al registrar modelo: {err_msg}")
@@ -299,12 +310,15 @@ def render():
                 btn_guardar_simple = st.form_submit_button(f"💾 Guardar en {cat_seleccionado}", type="primary", use_container_width=True)
 
                 if btn_guardar_simple:
-                    if not valor_in.strip():
+                    val_clean = valor_in.strip()
+                    if not val_clean:
                         st.warning("⚠️ El campo no puede quedar vacío.")
+                    elif existe_registro_simple(tabla_nom, col_nombre, val_clean):
+                        st.warning(f"⚠️ El registro `{val_clean}` ya existe en el catálogo `{cat_seleccionado}`.")
                     else:
-                        ok, err_msg = guardar_registro_simple(tabla_nom, col_nombre, valor_in)
+                        ok, err_msg = guardar_registro_simple(tabla_nom, col_nombre, val_clean)
                         if ok:
-                            st.session_state["mensaje_exito_cat"] = f"🎉 ¡Registro `{valor_in.strip()}` agregado exitosamente a `{tabla_nom}`!"
+                            st.session_state["mensaje_exito_cat"] = f"🎉 ¡Registro `{val_clean}` agregado exitosamente a `{tabla_nom}`!"
                             st.rerun()
                         else:
                             st.error(f"⛔ Error al registrar en `{tabla_nom}`: {err_msg}")

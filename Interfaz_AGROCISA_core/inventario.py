@@ -22,14 +22,25 @@ def limpiar_str_null(val):
         return None
     return val_clean
 
+def limpiar_int(val, defecto=0):
+    if val is None or pd.isna(val):
+        return defecto
+    try:
+        return int(float(val))
+    except Exception:
+        return defecto
+
 def obtener_catalogo_dict(tabla, col_id, col_nombre):
     try:
         conn = obtener_conexion()
+        if not conn:
+            return {}
         query = f"SELECT {col_id}, {col_nombre} FROM {tabla} ORDER BY {col_id} ASC"
         df = pd.read_sql(query, conn)
         conn.close()
-        return dict(zip(df[col_nombre], df[col_id]))
-    except Exception:
+        return dict(zip(df[col_nombre].astype(str), df[col_id].astype(int)))
+    except Exception as e:
+        st.error(f"⚠️ Error al cargar catálogo '{tabla}': {e}")
         return {}
 
 def notificar_exito(mensaje):
@@ -82,14 +93,13 @@ def guardar_celular(imei, serie, mac, numero, id_modelo, id_condicion, id_cargad
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
-        num_clean = limpiar_str_null(numero)
         query = """
             INSERT INTO inventario_celulares 
             (imei, numero_serie, mac_address, numero, id_modelo, id_condicion, id_cargador, id_caja, observaciones, comentarios, id_estatus_celular) 
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            imei.strip(), serie.strip(), limpiar_str_null(mac), num_clean, 
+            imei.strip(), serie.strip(), limpiar_str_null(mac), limpiar_str_null(numero), 
             id_modelo, id_condicion, id_cargador, id_caja, 
             limpiar_str_null(observaciones), limpiar_str_null(comentarios), id_estatus
         ))
@@ -104,7 +114,6 @@ def actualizar_celular(imei_viejo, imei_nuevo, serie, mac, numero, id_modelo, id
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
-        num_clean = limpiar_str_null(numero)
         imei_v = str(imei_viejo).strip()
         imei_n = str(imei_nuevo).strip()
 
@@ -117,7 +126,7 @@ def actualizar_celular(imei_viejo, imei_nuevo, serie, mac, numero, id_modelo, id
             WHERE imei = %s
         """
         cursor.execute(query, (
-            imei_n, serie.strip(), limpiar_str_null(mac), num_clean, id_modelo, id_condicion, 
+            imei_n, serie.strip(), limpiar_str_null(mac), limpiar_str_null(numero), id_modelo, id_condicion, 
             id_cargador, id_caja, id_estatus, limpiar_str_null(observaciones), limpiar_str_null(comentarios), imei_v
         ))
 
@@ -183,7 +192,7 @@ def guardar_laptop(serie, hostname, marca, modelo, proc, ram, datos_ram, mobo, i
             serie.strip(), hostname.strip(), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
             limpiar_str_null(datos_ram), limpiar_str_null(mobo), id_hdd_tipo, almac.strip(), 
             limpiar_str_null(datos_almac), so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), 
-            precio, id_condicion, id_cargador, id_renovacion, limpiar_str_null(obs), limpiar_str_null(com), id_estatus
+            limpiar_int(precio, 0), id_condicion, id_cargador, id_renovacion, limpiar_str_null(obs), limpiar_str_null(com), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -212,7 +221,7 @@ def actualizar_laptop(serie_vieja, serie_nueva, hostname, marca, modelo, proc, r
             s_nueva, hostname.strip(), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
             limpiar_str_null(datos_ram), limpiar_str_null(mobo), id_hdd_tipo, almac.strip(), 
             limpiar_str_null(datos_almac), so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), 
-            precio, id_condicion, id_cargador, id_renovacion, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), s_vieja
+            limpiar_int(precio, 0), id_condicion, id_cargador, id_renovacion, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), s_vieja
         ))
 
         if s_vieja != s_nueva:
@@ -234,15 +243,17 @@ def obtener_cpus_df():
         conn = obtener_conexion()
         query = """
             SELECT 
-                ic.hostname, ic.numero_serie, ic.marca, ic.modelo, ic.procesador, ic.memoria_ram, ic.datos_memoria_ram,
-                ht.hdd_opcion AS tipo_almacenamiento, ic.almacenamiento, ic.datos_almacenamiento, ic.sistema_operativo,
+                ic.id_cpu, ic.hostname, ic.numero_serie, ic.marca, ic.modelo, ic.procesador, ic.memoria_ram, ic.datos_memoria_ram,
+                ic.motherboard, ht.hdd_opcion AS tipo_almacenamiento, ic.almacenamiento, ic.datos_almacenamiento, ic.sistema_operativo,
+                ic.mac_address_lan, ic.mac_address_wlan, ic.precio,
                 ec.estatus_cpu AS estatus, ic.id_estatus_cpu,
                 COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
                 COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
                 COALESCE(dep.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
                 COALESCE(pue.nombre_puesto, 'SIN PUESTO') AS puesto,
-                c.condicion_opcion AS condicion, ic.observaciones, ic.comentarios,
-                ic.mac_address_lan, ic.mac_address_wlan, ic.id_hdd_tipo, ic.id_condicion
+                c.condicion_opcion AS condicion, r.renovacion_opcion AS renovacion,
+                ic.observaciones, ic.comentarios,
+                ic.id_hdd_tipo, ic.id_condicion, ic.id_renovacion
             FROM inventario_cpu ic
             LEFT JOIN estatus_cpu ec ON ic.id_estatus_cpu = ec.id_estatus_cpu
             LEFT JOIN hdd_tipo ht ON ic.id_hdd_tipo = ht.id_hdd_tipo
@@ -251,7 +262,8 @@ def obtener_cpus_df():
             LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
             LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
             LEFT JOIN condicion c ON ic.id_condicion = c.id_condicion
-            ORDER BY ic.hostname DESC
+            LEFT JOIN renovacion r ON ic.id_renovacion = r.id_renovacion
+            ORDER BY ic.id_cpu DESC
         """
         df = pd.read_sql(query, conn)
         conn.close()
@@ -260,20 +272,20 @@ def obtener_cpus_df():
         st.error(f"⚠️ Error CPUs: {e}")
         return pd.DataFrame()
 
-def guardar_cpu(hostname, serie, marca, modelo, proc, ram, datos_ram, id_hdd_tipo, almac, datos_almac, so, mac_lan, mac_wlan, id_condicion, obs, com="", id_estatus=4):
+def guardar_cpu(hostname, serie, marca, modelo, proc, ram, datos_ram, mobo, id_hdd_tipo, almac, datos_almac, so, mac_lan, mac_wlan, precio, id_condicion, id_renovacion, obs, com="", id_estatus=4):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
         query = """
             INSERT INTO inventario_cpu 
-            (hostname, numero_serie, marca, modelo, procesador, memoria_ram, datos_memoria_ram, id_hdd_tipo, almacenamiento, datos_almacenamiento, sistema_operativo, mac_address_lan, mac_address_wlan, id_condicion, observaciones, comentarios, id_estatus_cpu) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (hostname, numero_serie, marca, modelo, procesador, memoria_ram, datos_memoria_ram, motherboard, id_hdd_tipo, almacenamiento, datos_almacenamiento, sistema_operativo, mac_address_lan, mac_address_wlan, precio, id_condicion, id_renovacion, observaciones, comentarios, id_estatus_cpu) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            hostname.strip(), serie.strip(), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
-            limpiar_str_null(datos_ram), id_hdd_tipo, almac.strip(), limpiar_str_null(datos_almac), 
-            so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), id_condicion, 
-            limpiar_str_null(obs), limpiar_str_null(com), id_estatus
+            hostname.strip(), limpiar_str_null(serie), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
+            limpiar_str_null(datos_ram), limpiar_str_null(mobo), id_hdd_tipo, almac.strip(), 
+            limpiar_str_null(datos_almac), so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), 
+            limpiar_int(precio, 0), id_condicion, id_renovacion, limpiar_str_null(obs), limpiar_str_null(com), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -282,30 +294,25 @@ def guardar_cpu(hostname, serie, marca, modelo, proc, ram, datos_ram, id_hdd_tip
         st.error(f"⚠️ Error al guardar CPU: {e}")
         return False
 
-def actualizar_cpu(host_viejo, host_nuevo, serie, marca, modelo, proc, ram, datos_ram, id_hdd_tipo, almac, datos_almac, so, mac_lan, mac_wlan, id_condicion, id_estatus, obs, com=""):
+def actualizar_cpu(id_cpu, hostname, serie, marca, modelo, proc, ram, datos_ram, mobo, id_hdd_tipo, almac, datos_almac, so, mac_lan, mac_wlan, precio, id_condicion, id_renovacion, id_estatus, obs, com=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
-        h_viejo = str(host_viejo).strip()
-        h_nuevo = str(host_nuevo).strip()
-
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
 
         query = """
             UPDATE inventario_cpu 
-            SET hostname=%s, numero_serie=%s, marca=%s, modelo=%s, procesador=%s, memoria_ram=%s, datos_memoria_ram=%s, id_hdd_tipo=%s, 
-                almacenamiento=%s, datos_almacenamiento=%s, sistema_operativo=%s, mac_address_lan=%s, mac_address_wlan=%s, 
-                id_condicion=%s, id_estatus_cpu=%s, observaciones=%s, comentarios=%s 
-            WHERE hostname=%s
+            SET hostname=%s, numero_serie=%s, marca=%s, modelo=%s, procesador=%s, memoria_ram=%s, datos_memoria_ram=%s, motherboard=%s, 
+                id_hdd_tipo=%s, almacenamiento=%s, datos_almacenamiento=%s, sistema_operativo=%s, mac_address_lan=%s, mac_address_wlan=%s, 
+                precio=%s, id_condicion=%s, id_renovacion=%s, id_estatus_cpu=%s, observaciones=%s, comentarios=%s 
+            WHERE id_cpu=%s
         """
         cursor.execute(query, (
-            h_nuevo, serie.strip(), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
-            limpiar_str_null(datos_ram), id_hdd_tipo, almac.strip(), limpiar_str_null(datos_almac), 
-            so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), id_condicion, 
-            id_estatus, limpiar_str_null(obs), limpiar_str_null(com), h_viejo
+            hostname.strip(), limpiar_str_null(serie), marca.strip(), modelo.strip(), proc.strip(), ram.strip(), 
+            limpiar_str_null(datos_ram), limpiar_str_null(mobo), id_hdd_tipo, almac.strip(), 
+            limpiar_str_null(datos_almac), so.strip(), limpiar_str_null(mac_lan), limpiar_str_null(mac_wlan), 
+            limpiar_int(precio, 0), id_condicion, id_renovacion, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), int(id_cpu)
         ))
 
-        cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
         conn.commit()
         conn.close()
         return True
@@ -321,13 +328,14 @@ def obtener_monitores_df():
         conn = obtener_conexion()
         query = """
             SELECT 
-                im.numero_serie, im.hostname, im.marca, im.modelo, im.resolucion,
+                im.numero_serie, im.hostname, im.marca, im.modelo, im.resolucion, im.precio,
                 em.estatus_monitor AS estatus, im.id_estatus_monitor,
                 COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
                 COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
                 COALESCE(dep.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
                 COALESCE(pue.nombre_puesto, 'SIN PUESTO') AS puesto,
-                c.condicion_opcion AS condicion, im.observaciones, im.comentarios, im.id_condicion
+                c.condicion_opcion AS condicion, r.renovacion_opcion AS renovacion,
+                im.observaciones, im.comentarios, im.id_condicion, im.id_renovacion
             FROM inventario_monitores im
             LEFT JOIN estatus_monitores em ON im.id_estatus_monitor = em.id_estatus_monitor
             LEFT JOIN empleados emp ON TRIM(LEADING '0' FROM CAST(im.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(emp.codigo AS CHAR))
@@ -335,6 +343,7 @@ def obtener_monitores_df():
             LEFT JOIN departamentos dep ON emp.id_departamento = dep.id_departamento
             LEFT JOIN puestos pue ON emp.id_puesto = pue.id_puesto
             LEFT JOIN condicion c ON im.id_condicion = c.id_condicion
+            LEFT JOIN renovacion r ON im.id_renovacion = r.id_renovacion
             ORDER BY im.numero_serie DESC
         """
         df = pd.read_sql(query, conn)
@@ -344,18 +353,19 @@ def obtener_monitores_df():
         st.error(f"⚠️ Error Monitores: {e}")
         return pd.DataFrame()
 
-def guardar_monitor(serie, hostname, marca, modelo, resolucion, id_condicion, obs, com="", id_estatus=4):
+def guardar_monitor(serie, hostname, marca, modelo, resolucion, precio, id_condicion, id_renovacion, obs, com="", id_estatus=4):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
         query = """
             INSERT INTO inventario_monitores 
-            (numero_serie, hostname, marca, modelo, resolucion, id_condicion, observaciones, comentarios, id_estatus_monitor) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (numero_serie, hostname, marca, modelo, resolucion, precio, id_condicion, id_renovacion, observaciones, comentarios, id_estatus_monitor) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
             serie.strip(), limpiar_str_null(hostname), marca.strip(), modelo.strip(), 
-            limpiar_str_null(resolucion), id_condicion, limpiar_str_null(obs), limpiar_str_null(com), id_estatus
+            limpiar_str_null(resolucion), limpiar_int(precio, 0), id_condicion, id_renovacion, 
+            limpiar_str_null(obs), limpiar_str_null(com), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -364,7 +374,7 @@ def guardar_monitor(serie, hostname, marca, modelo, resolucion, id_condicion, ob
         st.error(f"⚠️ Error al guardar monitor: {e}")
         return False
 
-def actualizar_monitor(serie_vieja, serie_nueva, hostname, marca, modelo, resolucion, id_condicion, id_estatus, obs, com=""):
+def actualizar_monitor(serie_vieja, serie_nueva, hostname, marca, modelo, resolucion, precio, id_condicion, id_renovacion, id_estatus, obs, com=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
@@ -375,12 +385,12 @@ def actualizar_monitor(serie_vieja, serie_nueva, hostname, marca, modelo, resolu
 
         query = """
             UPDATE inventario_monitores 
-            SET numero_serie=%s, hostname=%s, marca=%s, modelo=%s, resolucion=%s, id_condicion=%s, id_estatus_monitor=%s, observaciones=%s, comentarios=%s 
+            SET numero_serie=%s, hostname=%s, marca=%s, modelo=%s, resolucion=%s, precio=%s, id_condicion=%s, id_renovacion=%s, id_estatus_monitor=%s, observaciones=%s, comentarios=%s 
             WHERE numero_serie=%s
         """
         cursor.execute(query, (
             s_nueva, limpiar_str_null(hostname), marca.strip(), modelo.strip(), limpiar_str_null(resolucion), 
-            id_condicion, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), s_vieja
+            limpiar_int(precio, 0), id_condicion, id_renovacion, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), s_vieja
         ))
 
         if s_vieja != s_nueva:
@@ -402,7 +412,7 @@ def obtener_tablets_df():
         conn = obtener_conexion()
         query = """
             SELECT 
-                it.numero_serie, it.imei, it.marca, it.modelo, it.mac_address,
+                it.numero_serie, it.imei, it.marca, it.modelo, it.mac_address, it.precio,
                 et.estatus_tablet AS estatus, it.id_estatus_tablet,
                 COALESCE(CONCAT_WS(' ', emp.nombre, emp.apellido_paterno, emp.apellido_materno), 'VACANTE / SIN ASIGNAR') AS asignado_a,
                 COALESCE(suc.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
@@ -427,18 +437,19 @@ def obtener_tablets_df():
         st.error(f"⚠️ Error Tablets: {e}")
         return pd.DataFrame()
 
-def guardar_tablet(serie, imei, marca, modelo, mac, id_condicion, id_cargador, obs, com="", id_estatus=4):
+def guardar_tablet(serie, imei, marca, modelo, mac, precio, id_condicion, id_cargador, obs, com="", id_estatus=4):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
         query = """
             INSERT INTO inventario_tablets 
-            (numero_serie, imei, marca, modelo, mac_address, id_condicion, id_cargador, observaciones, comentarios, id_estatus_tablet) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (numero_serie, imei, marca, modelo, mac_address, precio, id_condicion, id_cargador, observaciones, comentarios, id_estatus_tablet) 
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
             serie.strip(), limpiar_str_null(imei), marca.strip(), modelo.strip(), 
-            limpiar_str_null(mac), id_condicion, id_cargador, limpiar_str_null(obs), limpiar_str_null(com), id_estatus
+            limpiar_str_null(mac), limpiar_int(precio, 0), id_condicion, id_cargador, 
+            limpiar_str_null(obs), limpiar_str_null(com), id_estatus
         ))
         conn.commit()
         conn.close()
@@ -447,7 +458,7 @@ def guardar_tablet(serie, imei, marca, modelo, mac, id_condicion, id_cargador, o
         st.error(f"⚠️ Error al guardar tablet: {e}")
         return False
 
-def actualizar_tablet(serie_vieja, serie_nueva, imei, marca, modelo, mac, id_condicion, id_cargador, id_estatus, obs, com=""):
+def actualizar_tablet(serie_vieja, serie_nueva, imei, marca, modelo, mac, precio, id_condicion, id_cargador, id_estatus, obs, com=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
@@ -458,12 +469,12 @@ def actualizar_tablet(serie_vieja, serie_nueva, imei, marca, modelo, mac, id_con
 
         query = """
             UPDATE inventario_tablets 
-            SET numero_serie=%s, imei=%s, marca=%s, modelo=%s, mac_address=%s, id_condicion=%s, id_cargador=%s, id_estatus_tablet=%s, observaciones=%s, comentarios=%s 
+            SET numero_serie=%s, imei=%s, marca=%s, modelo=%s, mac_address=%s, precio=%s, id_condicion=%s, id_cargador=%s, id_estatus_tablet=%s, observaciones=%s, comentarios=%s 
             WHERE numero_serie=%s
         """
         cursor.execute(query, (
             s_nueva, limpiar_str_null(imei), marca.strip(), modelo.strip(), limpiar_str_null(mac), 
-            id_condicion, id_cargador, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), s_vieja
+            limpiar_int(precio, 0), id_condicion, id_cargador, id_estatus, limpiar_str_null(obs), limpiar_str_null(com), s_vieja
         ))
 
         if s_vieja != s_nueva:
@@ -512,7 +523,7 @@ def guardar_dispositivo_red(id_sucursal, tipo, marca, modelo, serie, mac_lan, ma
 
         if hostname.strip() or user_def.strip() or user_nuevo.strip():
             q_acc = "INSERT INTO dispositivos_accesos (id_dispositivo, hostname, usuario_admin_default, password_admin_default, nuevo_usuario, password_nuevo, puerto_admin) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-            cursor.execute(q_acc, (id_disp, hostname.strip(), user_def.strip() or None, pass_def.strip() or None, user_nuevo.strip() or None, pass_nuevo.strip() or None, puerto))
+            cursor.execute(q_acc, (id_disp, hostname.strip(), user_def.strip() or None, pass_def.strip() or None, user_nuevo.strip() or None, pass_nuevo.strip() or None, str(puerto)))
 
         if ssid.strip():
             q_wifi = "INSERT INTO dispositivos_wifi (id_dispositivo, ssid, modo_wpa, password_wpa) VALUES (%s, %s, %s, %s)"
@@ -534,7 +545,7 @@ def actualizar_dispositivo_red(id_dispositivo, id_sucursal, tipo, marca, modelo,
 
         if hostname.strip() or user_def.strip() or user_nuevo.strip():
             q_acc = "INSERT INTO dispositivos_accesos (id_dispositivo, hostname, usuario_admin_default, password_admin_default, nuevo_usuario, password_nuevo, puerto_admin) VALUES (%s, %s, %s, %s, %s, %s, %s) ON DUPLICATE KEY UPDATE hostname=VALUES(hostname), usuario_admin_default=VALUES(usuario_admin_default), password_admin_default=VALUES(password_admin_default), nuevo_usuario=VALUES(nuevo_usuario), password_nuevo=VALUES(password_nuevo), puerto_admin=VALUES(puerto_admin);"
-            cursor.execute(q_acc, (id_dispositivo, hostname.strip(), user_def.strip() or None, pass_def.strip() or None, user_nuevo.strip() or None, pass_nuevo.strip() or None, puerto))
+            cursor.execute(q_acc, (id_dispositivo, hostname.strip(), user_def.strip() or None, pass_def.strip() or None, user_nuevo.strip() or None, pass_nuevo.strip() or None, str(puerto)))
 
         if ssid.strip():
             q_wifi = "INSERT INTO dispositivos_wifi (id_dispositivo, ssid, modo_wpa, password_wpa) VALUES (%s, %s, %s, %s) ON DUPLICATE KEY UPDATE ssid=VALUES(ssid), modo_wpa=VALUES(modo_wpa), password_wpa=VALUES(password_wpa);"
@@ -551,7 +562,7 @@ def actualizar_dispositivo_red(id_dispositivo, id_sucursal, tipo, marca, modelo,
 # AYUDANTE DE FILTRADO DINÁMICO
 # ==============================================================================
 def render_filtros_inventario(df_origen, key_prefix):
-    col_id_unic = "imei" if "imei" in df_origen.columns else ("numero_serie" if "numero_serie" in df_origen.columns else "id_dispositivo")
+    col_id_unic = "imei" if "imei" in df_origen.columns else ("numero_serie" if "numero_serie" in df_origen.columns else ("hostname" if "hostname" in df_origen.columns else "id_dispositivo"))
     
     opts_autocompletar = [
         f"{r[col_id_unic]} | {r.get('marca_modelo', r.get('modelo', ''))} | {r.get('asignado_a', '')}"
@@ -562,10 +573,10 @@ def render_filtros_inventario(df_origen, key_prefix):
     c_auto, c_est = st.columns([2, 1])
     with c_auto:
         sel_auto = st.selectbox(
-            f"🔍 Autocompletar por {'IMEI' if col_id_unic == 'imei' else 'Número de Serie'}:",
+            f"🔍 Autocompletar por {'IMEI' if col_id_unic == 'imei' else ('Serie' if col_id_unic == 'numero_serie' else 'Hostname')}:",
             opts_autocompletar,
             index=None,
-            placeholder=f"Teclea aquí {'el IMEI' if col_id_unic == 'imei' else 'la Serie'} o Modelo para autocompletar...",
+            placeholder=f"Teclea aquí para autocompletar...",
             key=f"auto_{key_prefix}"
         )
     with c_est:
@@ -623,24 +634,10 @@ def render():
         del st.session_state["mensaje_exito"]
 
     dict_condiciones = obtener_catalogo_dict("condicion", "id_condicion", "condicion_opcion")
-    if not dict_condiciones:
-        dict_condiciones = {"Excelente": 1, "Buenas condiciones": 2, "Media vida": 3, "Obsoleto (a)": 4}
-
     dict_cargadores = obtener_catalogo_dict("cargadores", "id_cargador", "cargador_opcion")
-    if not dict_cargadores:
-        dict_cargadores = {"CON Cargador Original y CON Cable": 1, "CON Cargador genérico y CON Cable": 2, "SIN Cargador": 3}
-
     dict_cajas = obtener_catalogo_dict("caja", "id_caja", "caja_opcion")
-    if not dict_cajas:
-        dict_cajas = {"Con caja": 1, "Sin caja": 2}
-
     dict_hdd_tipos = obtener_catalogo_dict("hdd_tipo", "id_hdd_tipo", "hdd_opcion")
-    if not dict_hdd_tipos:
-        dict_hdd_tipos = {"HDD": 1, "SSD": 2, "M.2 NVMe": 3}
-
     dict_renovaciones = obtener_catalogo_dict("renovacion", "id_renovacion", "renovacion_opcion")
-    if not dict_renovaciones:
-        dict_renovaciones = {"SÍ": 1, "NO": 2}
 
     tab_cel, tab_lap, tab_cpu, tab_mon, tab_tab, tab_red = st.tabs([
         "📱 Celulares", "💻 Laptops", "🖥️ CPUs", "🖥️ Monitores", "📱 Tablets", "🌐 Dispositivos de Red"
@@ -691,9 +688,6 @@ def render():
                         notificar_exito(f"¡Celular IMEI {imei} dado de alta con éxito!")
         with t3:
             if not df_cel.empty:
-                st.markdown("### 🔍 Búsqueda y Autocompletado de Celular")
-                st.caption("Escribe en la casilla (IMEI, Modelo, Colaborador o Sucursal) para autocompletar la selección:")
-
                 opts_cel_ed = [
                     f"{r['imei']} | {r['marca_modelo']} | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
                     for _, r in df_cel.iterrows()
@@ -773,7 +767,7 @@ def render():
                 so = c2.text_input("Sistema Operativo*:", value="Windows 11 Pro 64-bit")
                 mac_lan = c2.text_input("MAC LAN:")
                 mac_wlan = c2.text_input("MAC Wi-Fi:")
-                precio = c2.number_input("Precio Estimado ($):", min_value=0.0, value=0.0, step=500.0)
+                precio = c2.number_input("Precio Estimado ($):", min_value=0, value=0, step=500)
                 
                 c3, c4 = st.columns(2)
                 cond_sel = c3.selectbox("Condición*:", list(dict_condiciones.keys()))
@@ -788,9 +782,6 @@ def render():
                         notificar_exito(f"¡Laptop Serie {serie} registrada con éxito!")
         with t3:
             if not df_lap.empty:
-                st.markdown("### 🔍 Búsqueda y Autocompletado de Laptop")
-                st.caption("Escribe en la casilla (Serie, Hostname, Modelo, Colaborador o Sucursal) para autocompletar:")
-
                 opts_lap_ed = [
                     f"{r['numero_serie']} | {r['hostname']} ({r['marca']} {r['modelo']}) | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
                     for _, r in df_lap.iterrows()
@@ -826,7 +817,7 @@ def render():
                         e_so = c2.text_input("S.O.:", value=limpiar_str_null(r["sistema_operativo"]) or "")
                         e_maclan = c2.text_input("MAC LAN:", value=limpiar_str_null(r["mac_address_lan"]) or "")
                         e_macwlan = c2.text_input("MAC Wi-Fi:", value=limpiar_str_null(r["mac_address_wlan"]) or "")
-                        e_precio = c2.number_input("Precio ($):", value=float(r["precio"] or 0.0), step=500.0)
+                        e_precio = c2.number_input("Precio ($):", value=limpiar_int(r["precio"], 0), step=500)
                         
                         c3, c4 = st.columns(2)
                         e_cond = c3.selectbox("Condición:", list(dict_condiciones.keys()), index=list(dict_condiciones.values()).index(r["id_condicion"]) if r["id_condicion"] in dict_condiciones.values() else 0)
@@ -853,7 +844,7 @@ def render():
         with t1:
             if not df_cpu.empty:
                 df_filt_cpu = render_filtros_inventario(df_cpu, "cpu_cg")
-                df_view = df_filt_cpu[["hostname", "numero_serie", "marca", "modelo", "procesador", "memoria_ram", "datos_memoria_ram", "tipo_almacenamiento", "almacenamiento", "datos_almacenamiento", "sistema_operativo", "mac_address_lan", "mac_address_wlan", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
+                df_view = df_filt_cpu[["id_cpu", "hostname", "numero_serie", "marca", "modelo", "procesador", "memoria_ram", "motherboard", "tipo_almacenamiento", "almacenamiento", "sistema_operativo", "precio", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_inf, c_btn = st.columns([3, 1])
@@ -872,31 +863,36 @@ def render():
             with st.form("form_add_cpu"):
                 c1, c2 = st.columns(2)
                 host = c1.text_input("Hostname*:")
-                serie = c1.text_input("Número de Serie*:")
+                serie = c1.text_input("Número de Serie (Opcional):")
                 marca = c1.text_input("Marca*:")
                 modelo = c1.text_input("Modelo*:")
                 proc = c1.text_input("Procesador*:")
-                ram = c1.text_input("RAM Resumen*:")
+                ram = c1.text_input("RAM Resumen (ej. 8 GB)*:")
                 datos_ram = c1.text_input("RAM Speccy:")
+                mobo = c1.text_input("Motherboard (ej. Asus Prime H110M):")
+
                 hdd_sel = c2.selectbox("Tipo Disco:", list(dict_hdd_tipos.keys()))
-                almac = c2.text_input("Almacenamiento Resumen*:")
+                almac = c2.text_input("Almacenamiento Resumen (ej. 240 GB)*:")
                 datos_almac = c2.text_input("Almacenamiento Speccy:")
                 so = c2.text_input("S.O.*:", value="Windows 11 Pro")
                 mac_lan = c2.text_input("MAC LAN:")
                 mac_wlan = c2.text_input("MAC Wi-Fi:")
-                cond_sel = c2.selectbox("Condición:", list(dict_condiciones.keys()))
+                precio = c2.number_input("Precio Estimado ($):", min_value=0, value=0, step=500)
+
+                c3, c4 = st.columns(2)
+                cond_sel = c3.selectbox("Condición:", list(dict_condiciones.keys()))
+                renov_sel_nom = c4.selectbox("¿Se debe renovar?", list(dict_renovaciones.keys()), index=0)
+
                 obs = st.text_area("Observaciones (Diagnóstico/Baja):")
                 com = st.text_area("Comentarios (Estatus físico - va al Word):")
                 if st.form_submit_button("💾 Guardar CPU", type="primary"):
-                    if host and serie and guardar_cpu(host, serie, marca, modelo, proc, ram, datos_ram, dict_hdd_tipos[hdd_sel], almac, datos_almac, so, mac_lan, mac_wlan, dict_condiciones[cond_sel], obs, com):
+                    id_renov_val = dict_renovaciones[renov_sel_nom]
+                    if host and guardar_cpu(host, serie, marca, modelo, proc, ram, datos_ram, mobo, dict_hdd_tipos[hdd_sel], almac, datos_almac, so, mac_lan, mac_wlan, precio, dict_condiciones[cond_sel], id_renov_val, obs, com):
                         notificar_exito(f"¡CPU Hostname {host} registrado con éxito!")
         with t3:
             if not df_cpu.empty:
-                st.markdown("### 🔍 Búsqueda y Autocompletado de CPU")
-                st.caption("Escribe en la casilla (Hostname, Serie, Modelo, Colaborador o Sucursal) para autocompletar:")
-
                 opts_cpu_ed = [
-                    f"{r['hostname']} | {r['numero_serie']} ({r['marca']} {r['modelo']}) | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
+                    f"ID: {r['id_cpu']} | {r['hostname']} ({r['marca']} {r['modelo']}) | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
                     for _, r in df_cpu.iterrows()
                 ]
 
@@ -909,19 +905,20 @@ def render():
                 )
 
                 if cpu_sel:
-                    host_ed = cpu_sel.split(" | ")[0]
-                    r = df_cpu[df_cpu["hostname"] == host_ed].iloc[0]
+                    id_cpu_ed = int(cpu_sel.split(" | ")[0].replace("ID: ", ""))
+                    r = df_cpu[df_cpu["id_cpu"] == id_cpu_ed].iloc[0]
                     
                     st.divider()
-                    with st.form(f"form_ed_cpu_{host_ed}"):
+                    with st.form(f"form_ed_cpu_{id_cpu_ed}"):
                         c1, c2 = st.columns(2)
-                        e_host_edit = c1.text_input("Hostname (Identificador):", value=str(r["hostname"]))
+                        e_host = c1.text_input("Hostname:", value=limpiar_str_null(r["hostname"]) or "")
                         e_ser = c1.text_input("Número de Serie:", value=limpiar_str_null(r["numero_serie"]) or "")
                         e_marca = c1.text_input("Marca:", value=limpiar_str_null(r["marca"]) or "")
                         e_mod = c1.text_input("Modelo:", value=limpiar_str_null(r["modelo"]) or "")
                         e_proc = c1.text_input("Procesador:", value=limpiar_str_null(r["procesador"]) or "")
                         e_ram = c1.text_input("RAM Resumen:", value=limpiar_str_null(r["memoria_ram"]) or "")
                         e_datos_ram = c1.text_input("RAM Speccy:", value=limpiar_str_null(r["datos_memoria_ram"]) or "")
+                        e_mobo = c1.text_input("Motherboard:", value=limpiar_str_null(r["motherboard"]) or "")
                         
                         e_hdd = c2.selectbox("Tipo Disco:", list(dict_hdd_tipos.keys()), index=list(dict_hdd_tipos.values()).index(r["id_hdd_tipo"]) if r["id_hdd_tipo"] in dict_hdd_tipos.values() else 0)
                         e_almac = c2.text_input("Almacenamiento Resumen:", value=limpiar_str_null(r["almacenamiento"]) or "")
@@ -929,14 +926,20 @@ def render():
                         e_so = c2.text_input("S.O.:", value=limpiar_str_null(r["sistema_operativo"]) or "")
                         e_maclan = c2.text_input("MAC LAN:", value=limpiar_str_null(r["mac_address_lan"]) or "")
                         e_macwlan = c2.text_input("MAC Wi-Fi:", value=limpiar_str_null(r["mac_address_wlan"]) or "")
-                        e_cond = c2.selectbox("Condición:", list(dict_condiciones.keys()), index=list(dict_condiciones.values()).index(r["id_condicion"]) if r["id_condicion"] in dict_condiciones.values() else 0)
-                        e_est = c2.selectbox("Estatus CPU:", list(dict_est_cpu.keys()), index=list(dict_est_cpu.keys()).index(r["estatus"]) if r["estatus"] in dict_est_cpu else 0)
+                        e_precio = c2.number_input("Precio ($):", value=limpiar_int(r["precio"], 0), step=500)
+                        
+                        c3, c4 = st.columns(2)
+                        e_cond = c3.selectbox("Condición:", list(dict_condiciones.keys()), index=list(dict_condiciones.values()).index(r["id_condicion"]) if r["id_condicion"] in dict_condiciones.values() else 0)
+                        idx_renov_cpu = list(dict_renovaciones.values()).index(r["id_renovacion"]) if r["id_renovacion"] in dict_renovaciones.values() else 0
+                        e_renov_nom = c3.selectbox("¿Se debe renovar?", list(dict_renovaciones.keys()), index=idx_renov_cpu)
+                        e_est = c4.selectbox("Estatus CPU:", list(dict_est_cpu.keys()), index=list(dict_est_cpu.keys()).index(r["estatus"]) if r["estatus"] in dict_est_cpu else 0)
                         
                         e_obs = st.text_area("Observaciones (Diagnóstico/Baja):", value=limpiar_str_null(r["observaciones"]) or "")
                         e_com = st.text_area("Comentarios (Estatus físico - va al Word):", value=limpiar_str_null(r["comentarios"]) or "")
                         if st.form_submit_button("💾 Actualizar CPU", type="primary"):
-                            if actualizar_cpu(host_ed, e_host_edit, e_ser, e_marca, e_mod, e_proc, e_ram, e_datos_ram, dict_hdd_tipos[e_hdd], e_almac, e_datos_almac, e_so, e_maclan, e_macwlan, dict_condiciones[e_cond], dict_est_cpu[e_est], e_obs, e_com):
-                                notificar_exito(f"¡CPU Hostname {e_host_edit} actualizado correctamente!")
+                            id_renov_edit_val = dict_renovaciones[e_renov_nom]
+                            if actualizar_cpu(id_cpu_ed, e_host, e_ser, e_marca, e_mod, e_proc, e_ram, e_datos_ram, e_mobo, dict_hdd_tipos[e_hdd], e_almac, e_datos_almac, e_so, e_maclan, e_macwlan, e_precio, dict_condiciones[e_cond], id_renov_edit_val, dict_est_cpu[e_est], e_obs, e_com):
+                                notificar_exito(f"¡CPU Hostname {e_host} (ID {id_cpu_ed}) actualizado correctamente!")
 
     # --------------------------------------------------------------------------
     # 4. MONITORES
@@ -948,7 +951,7 @@ def render():
         with t1:
             if not df_mon.empty:
                 df_filt_mon = render_filtros_inventario(df_mon, "mon_cg")
-                df_view = df_filt_mon[["numero_serie", "hostname", "marca", "modelo", "resolucion", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
+                df_view = df_filt_mon[["numero_serie", "hostname", "marca", "modelo", "resolucion", "precio", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_inf, c_btn = st.columns([3, 1])
@@ -971,17 +974,20 @@ def render():
                 marca = c1.text_input("Marca*:")
                 modelo = c2.text_input("Modelo*:")
                 resol = c2.text_input("Resolución (ej. 1920x1080):")
-                cond_sel = c2.selectbox("Condición:", list(dict_condiciones.keys()))
+                precio = c2.number_input("Precio Estimado ($):", min_value=0, value=0, step=200)
+
+                c3, c4 = st.columns(2)
+                cond_sel = c3.selectbox("Condición:", list(dict_condiciones.keys()))
+                renov_sel_nom = c4.selectbox("¿Se debe renovar?", list(dict_renovaciones.keys()), index=0)
+
                 obs = st.text_area("Observaciones (Diagnóstico/Baja):")
                 com = st.text_area("Comentarios (Estatus físico - va al Word):")
                 if st.form_submit_button("💾 Guardar Monitor", type="primary"):
-                    if serie and guardar_monitor(serie, host, marca, modelo, resol, dict_condiciones[cond_sel], obs, com):
+                    id_renov_val = dict_renovaciones[renov_sel_nom]
+                    if serie and guardar_monitor(serie, host, marca, modelo, resol, precio, dict_condiciones[cond_sel], id_renov_val, obs, com):
                         notificar_exito(f"¡Monitor Serie {serie} registrado con éxito!")
         with t3:
             if not df_mon.empty:
-                st.markdown("### 🔍 Búsqueda y Autocompletado de Monitor")
-                st.caption("Escribe en la casilla (Serie, Marca, Modelo, Colaborador o Sucursal) para autocompletar:")
-
                 opts_mon_ed = [
                     f"{r['numero_serie']} | {r['marca']} {r['modelo']} | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
                     for _, r in df_mon.iterrows()
@@ -1007,13 +1013,19 @@ def render():
                         e_marca = c1.text_input("Marca:", value=limpiar_str_null(r["marca"]) or "")
                         e_mod = c2.text_input("Modelo:", value=limpiar_str_null(r["modelo"]) or "")
                         e_resol = c2.text_input("Resolución:", value=limpiar_str_null(r["resolucion"]) or "")
-                        e_cond = c1.selectbox("Condición:", list(dict_condiciones.keys()), index=list(dict_condiciones.values()).index(r["id_condicion"]) if r["id_condicion"] in dict_condiciones.values() else 0)
-                        e_est = c2.selectbox("Estatus Monitor:", list(dict_est_mon.keys()), index=list(dict_est_mon.keys()).index(r["estatus"]) if r["estatus"] in dict_est_mon else 0)
+                        e_precio = c2.number_input("Precio ($):", value=limpiar_int(r["precio"], 0), step=200)
+
+                        c3, c4 = st.columns(2)
+                        e_cond = c3.selectbox("Condición:", list(dict_condiciones.keys()), index=list(dict_condiciones.values()).index(r["id_condicion"]) if r["id_condicion"] in dict_condiciones.values() else 0)
+                        idx_renov_mon = list(dict_renovaciones.values()).index(r["id_renovacion"]) if r["id_renovacion"] in dict_renovaciones.values() else 0
+                        e_renov_nom = c3.selectbox("¿Se debe renovar?", list(dict_renovaciones.keys()), index=idx_renov_mon)
+                        e_est = c4.selectbox("Estatus Monitor:", list(dict_est_mon.keys()), index=list(dict_est_mon.keys()).index(r["estatus"]) if r["estatus"] in dict_est_mon else 0)
                         
                         e_obs = st.text_area("Observaciones (Diagnóstico/Baja):", value=limpiar_str_null(r["observaciones"]) or "")
                         e_com = st.text_area("Comentarios (Estatus físico - va al Word):", value=limpiar_str_null(r["comentarios"]) or "")
                         if st.form_submit_button("💾 Actualizar Monitor", type="primary"):
-                            if actualizar_monitor(serie_ed, e_serie_edit, e_host, e_marca, e_mod, e_resol, dict_condiciones[e_cond], dict_est_mon[e_est], e_obs, e_com):
+                            id_renov_edit_val = dict_renovaciones[e_renov_nom]
+                            if actualizar_monitor(serie_ed, e_serie_edit, e_host, e_marca, e_mod, e_resol, e_precio, dict_condiciones[e_cond], id_renov_edit_val, dict_est_mon[e_est], e_obs, e_com):
                                 notificar_exito(f"¡Monitor Serie {e_serie_edit} actualizado correctamente!")
 
     # --------------------------------------------------------------------------
@@ -1026,7 +1038,7 @@ def render():
         with t1:
             if not df_tab.empty:
                 df_filt_tab = render_filtros_inventario(df_tab, "tab_cg")
-                df_view = df_filt_tab[["numero_serie", "imei", "marca", "modelo", "mac_address", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
+                df_view = df_filt_tab[["numero_serie", "imei", "marca", "modelo", "mac_address", "precio", "estatus", "asignado_a", "sucursal", "departamento", "puesto", "observaciones", "comentarios"]]
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_inf, c_btn = st.columns([3, 1])
@@ -1049,18 +1061,19 @@ def render():
                 marca = c1.text_input("Marca*:")
                 modelo = c2.text_input("Modelo*:")
                 mac = c2.text_input("MAC Wi-Fi:")
-                cond_sel = c2.selectbox("Condición:", list(dict_condiciones.keys()))
-                carg_sel = c2.selectbox("Cargador:", list(dict_cargadores.keys()))
+                precio = c2.number_input("Precio Estimado ($):", min_value=0, value=0, step=300)
+
+                c3, c4 = st.columns(2)
+                cond_sel = c3.selectbox("Condición:", list(dict_condiciones.keys()))
+                carg_sel = c4.selectbox("Cargador:", list(dict_cargadores.keys()))
+
                 obs = st.text_area("Observaciones (Diagnóstico/Baja):")
                 com = st.text_area("Comentarios (Estatus físico - va al Word):")
                 if st.form_submit_button("💾 Guardar Tablet", type="primary"):
-                    if serie and guardar_tablet(serie, imei, marca, modelo, mac, dict_condiciones[cond_sel], dict_cargadores[carg_sel], obs, com):
+                    if serie and guardar_tablet(serie, imei, marca, modelo, mac, precio, dict_condiciones[cond_sel], dict_cargadores[carg_sel], obs, com):
                         notificar_exito(f"¡Tablet Serie {serie} registrada con éxito!")
         with t3:
             if not df_tab.empty:
-                st.markdown("### 🔍 Búsqueda y Autocompletado de Tablet")
-                st.caption("Escribe en la casilla (Serie, IMEI, Modelo, Colaborador o Sucursal) para autocompletar:")
-
                 opts_tab_ed = [
                     f"{r['numero_serie']} | IMEI: {r['imei'] or 'S/I'} ({r['marca']} {r['modelo']}) | [{r['estatus']}] | {r['asignado_a']} ({r['sucursal']})"
                     for _, r in df_tab.iterrows()
@@ -1086,14 +1099,17 @@ def render():
                         e_marca = c1.text_input("Marca:", value=limpiar_str_null(r["marca"]) or "")
                         e_mod = c2.text_input("Modelo:", value=limpiar_str_null(r["modelo"]) or "")
                         e_mac = c2.text_input("MAC Wi-Fi:", value=limpiar_str_null(r["mac_address"]) or "")
-                        e_cond = c1.selectbox("Condición:", list(dict_condiciones.keys()), index=list(dict_condiciones.values()).index(r["id_condicion"]) if r["id_condicion"] in dict_condiciones.values() else 0)
-                        e_carg = c2.selectbox("Cargador:", list(dict_cargadores.keys()), index=list(dict_cargadores.values()).index(r["id_cargador"]) if r["id_cargador"] in dict_cargadores.values() else 0)
-                        e_est = c2.selectbox("Estatus Tablet:", list(dict_est_tab.keys()), index=list(dict_est_tab.keys()).index(r["estatus"]) if r["estatus"] in dict_est_tab else 0)
+                        e_precio = c2.number_input("Precio ($):", value=limpiar_int(r["precio"], 0), step=300)
+
+                        c3, c4 = st.columns(2)
+                        e_cond = c3.selectbox("Condición:", list(dict_condiciones.keys()), index=list(dict_condiciones.values()).index(r["id_condicion"]) if r["id_condicion"] in dict_condiciones.values() else 0)
+                        e_carg = c4.selectbox("Cargador:", list(dict_cargadores.keys()), index=list(dict_cargadores.values()).index(r["id_cargador"]) if r["id_cargador"] in dict_cargadores.values() else 0)
+                        e_est = c4.selectbox("Estatus Tablet:", list(dict_est_tab.keys()), index=list(dict_est_tab.keys()).index(r["estatus"]) if r["estatus"] in dict_est_tab else 0)
                         
                         e_obs = st.text_area("Observaciones (Diagnóstico/Baja):", value=limpiar_str_null(r["observaciones"]) or "")
                         e_com = st.text_area("Comentarios (Estatus físico - va al Word):", value=limpiar_str_null(r["comentarios"]) or "")
                         if st.form_submit_button("💾 Actualizar Tablet", type="primary"):
-                            if actualizar_tablet(serie_ed, e_serie_edit, e_imei, e_marca, e_mod, e_mac, dict_condiciones[e_cond], dict_cargadores[e_carg], dict_est_tab[e_est], e_obs, e_com):
+                            if actualizar_tablet(serie_ed, e_serie_edit, e_imei, e_marca, e_mod, e_mac, e_precio, dict_condiciones[e_cond], dict_cargadores[e_carg], dict_est_tab[e_est], e_obs, e_com):
                                 notificar_exito(f"¡Tablet Serie {e_serie_edit} actualizada correctamente!")
 
     # --------------------------------------------------------------------------
@@ -1171,9 +1187,6 @@ def render():
                         notificar_exito(f"¡Equipo de Red {host or modelo} registrado con éxito!")
         with t3:
             if not df_red.empty:
-                st.markdown("### 🔍 Búsqueda y Autocompletado de Dispositivo de Red")
-                st.caption("Escribe en la casilla (Hostname, Tipo, Marca o Sucursal) para autocompletar:")
-
                 opts_red_ed = [
                     f"{r['id_dispositivo']} | [{r['tipo']}] {r['marca']} {r['modelo']} (Host: {r['hostname'] or 'S/H'}) | {r['sucursal']}"
                     for _, r in df_red.iterrows()

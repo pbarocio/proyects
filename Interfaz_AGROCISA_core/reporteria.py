@@ -4,65 +4,8 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 from database import obtener_conexion
+from estilos_dashboard import aplicar_estilo_sb_admin
 import sync_drive
-
-# ==============================================================================
-# 0. ESTILOS VISUALES - ESTILO SB ADMIN 2 / BOOTSTRAP EXECUTIVE
-# ==============================================================================
-def aplicar_estilo_sb_admin():
-    st.markdown("""
-        <style>
-            .appview-container .main .block-container {
-                max-width: 95% !important;
-                padding-top: 1.5rem !important;
-                padding-bottom: 2rem !important;
-            }
-
-            /* TARJETAS KPI ESTILO SB ADMIN 2 */
-            div[data-testid="stMetric"] {
-                background-color: #1e293b !important;
-                border-radius: 8px !important;
-                padding: 15px 20px !important;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
-                border-left: 5px solid #3b82f6 !important;
-            }
-
-            /* Bordes de color dinámicos por columna */
-            div[data-testid="column"]:nth-child(1) div[data-testid="stMetric"] {
-                border-left-color: #3b82f6 !important; /* Total Hardware: Azul */
-            }
-            div[data-testid="column"]:nth-child(2) div[data-testid="stMetric"] {
-                border-left-color: #10b981 !important; /* Asignados: Verde */
-            }
-            div[data-testid="column"]:nth-child(3) div[data-testid="stMetric"] {
-                border-left-color: #06b6d4 !important; /* Disponibles: Cyan */
-            }
-            div[data-testid="column"]:nth-child(4) div[data-testid="stMetric"] {
-                border-left-color: #f59e0b !important; /* Taller/Mant: Amarillo */
-            }
-
-            /* Tipografía de Métricas */
-            div[data-testid="stMetricLabel"] > div {
-                color: #94a3b8 !important;
-                font-size: 0.82rem !important;
-                font-weight: 700 !important;
-                text-transform: uppercase !important;
-                letter-spacing: 0.05em !important;
-            }
-
-            div[data-testid="stMetricValue"] > div {
-                color: #f8fafc !important;
-                font-size: 2rem !important;
-                font-weight: 800 !important;
-            }
-
-            /* Pestañas y Tablas */
-            div[data-testid="stDataFrame"] {
-                border: 1px solid #334155;
-                border-radius: 8px;
-            }
-        </style>
-    """, unsafe_allow_html=True)
 
 # ==============================================================================
 # 1. GENERADOR DE GRÁFICA DE DONA (DONUT CHART)
@@ -99,6 +42,9 @@ def generar_grafica_dona(df_kpi):
 def obtener_kpis_inventario():
     try:
         conn = obtener_conexion()
+        if not conn:
+            return 0, 0, 0, 0, pd.DataFrame()
+
         query = """
             SELECT 'Celulares' AS Categoria, id_estatus_celular AS estatus FROM inventario_celulares
             UNION ALL
@@ -126,43 +72,43 @@ def obtener_kpis_inventario():
 def obtener_equipos_por_colaborador(codigo_empleado):
     try:
         conn = obtener_conexion()
-        cod_str = str(codigo_empleado).strip()
+        cod_clean = str(codigo_empleado).strip().lstrip('0')
         query = """
-            SELECT '📱 Celular' AS Tipo, CONCAT(m.marca_modelo, ' (IMEI: ', ic.imei, ')') AS Equipo, COALESCE(ic.numero, 'Sin Línea') AS Identificador_Serie, c.condicion_opcion AS Condicion
+            SELECT '📱 Celular' AS Tipo, CONCAT(COALESCE(m.marca_modelo, 'Celular'), ' (IMEI: ', ic.imei, ')') AS Equipo, COALESCE(ic.numero, 'Sin Línea') AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_celulares ic
             LEFT JOIN modelos_celulares m ON ic.id_modelo = m.id_modelo
             LEFT JOIN condicion c ON ic.id_condicion = c.id_condicion
-            WHERE ic.codigo_empleado = %s
+            WHERE TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = %s
 
             UNION ALL
 
-            SELECT '💻 Laptop' AS Tipo, CONCAT(il.marca, ' ', il.modelo, ' [', il.hostname, ']') AS Equipo, il.numero_serie AS Identificador_Serie, c.condicion_opcion AS Condicion
+            SELECT '💻 Laptop' AS Tipo, CONCAT(COALESCE(il.marca, ''), ' ', COALESCE(il.modelo, ''), ' [', COALESCE(il.hostname, ''), ']') AS Equipo, il.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_laptops il
             LEFT JOIN condicion c ON il.id_condicion = c.id_condicion
-            WHERE il.codigo_empleado = %s
+            WHERE TRIM(LEADING '0' FROM CAST(il.codigo_empleado AS CHAR)) = %s
 
             UNION ALL
 
-            SELECT '🖥️ CPU' AS Tipo, CONCAT('CPU ', icp.marca, ' ', icp.modelo, ' [', icp.hostname, ']') AS Equipo, icp.numero_serie AS Identificador_Serie, c.condicion_opcion AS Condicion
+            SELECT '🖥️ CPU' AS Tipo, CONCAT('CPU ', COALESCE(icp.marca, ''), ' ', COALESCE(icp.modelo, ''), ' [', COALESCE(icp.hostname, ''), ']') AS Equipo, COALESCE(icp.numero_serie, icp.hostname) AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_cpu icp
             LEFT JOIN condicion c ON icp.id_condicion = c.id_condicion
-            WHERE icp.codigo_empleado = %s
+            WHERE TRIM(LEADING '0' FROM CAST(icp.codigo_empleado AS CHAR)) = %s
 
             UNION ALL
 
-            SELECT '🖥️ Monitor' AS Tipo, CONCAT('Monitor ', im.marca, ' ', im.modelo) AS Equipo, im.numero_serie AS Identificador_Serie, c.condicion_opcion AS Condicion
+            SELECT '🖥️ Monitor' AS Tipo, CONCAT('Monitor ', COALESCE(im.marca, ''), ' ', COALESCE(im.modelo, '')) AS Equipo, im.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_monitores im
             LEFT JOIN condicion c ON im.id_condicion = c.id_condicion
-            WHERE im.codigo_empleado = %s
+            WHERE TRIM(LEADING '0' FROM CAST(im.codigo_empleado AS CHAR)) = %s
 
             UNION ALL
 
-            SELECT '📱 Tablet' AS Tipo, CONCAT('Tablet ', it.marca, ' ', it.modelo) AS Equipo, it.numero_serie AS Identificador_Serie, c.condicion_opcion AS Condicion
+            SELECT '📱 Tablet' AS Tipo, CONCAT('Tablet ', COALESCE(it.marca, ''), ' ', COALESCE(it.modelo, '')) AS Equipo, it.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_tablets it
             LEFT JOIN condicion c ON it.id_condicion = c.id_condicion
-            WHERE it.codigo_empleado = %s
+            WHERE TRIM(LEADING '0' FROM CAST(it.codigo_empleado AS CHAR)) = %s
         """
-        df = pd.read_sql(query, conn, params=(cod_str, cod_str, cod_str, cod_str, cod_str))
+        df = pd.read_sql(query, conn, params=(cod_clean, cod_clean, cod_clean, cod_clean, cod_clean))
         conn.close()
         return df
     except Exception as e:
@@ -174,21 +120,24 @@ def obtener_reporte_lineas_df():
         conn = obtener_conexion()
         query = """
             SELECT 
-                ic.numero AS `Línea Telefónica`,
-                CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS Colaborador,
-                s.nombre_sucursal AS Sucursal,
-                d.nombre_departamento AS Departamento,
-                p.nombre_puesto AS Puesto,
-                m.marca_modelo AS `Modelo Equipo`,
-                ic.imei AS IMEI
-            FROM inventario_celulares ic
-            JOIN empleados e ON ic.codigo_empleado = e.codigo
+                lt.numero AS `Línea Telefónica`,
+                COALESCE(CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno), 'SIN ASIGNAR') AS Colaborador,
+                COALESCE(s.nombre_sucursal, 'SIN SUCURSAL') AS Sucursal,
+                COALESCE(d.nombre_departamento, 'SIN DEPARTAMENTO') AS Departamento,
+                COALESCE(p.nombre_puesto, 'SIN PUESTO') AS Puesto,
+                COALESCE(lt.plan_2026, lt.plan_2024, '4') AS Plan,
+                COALESCE(elt.estatus_linea, 'ACTIVO') AS Estatus,
+                COALESCE(m.marca_modelo, 'Línea / Chip Suelto') AS `Modelo Equipo`,
+                COALESCE(ic.imei, 'S/I') AS IMEI
+            FROM lineas_telefonicas lt
+            LEFT JOIN empleados e ON TRIM(LEADING '0' FROM CAST(lt.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
             LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
             LEFT JOIN departamentos d ON e.id_departamento = d.id_departamento
             LEFT JOIN puestos p ON e.id_puesto = p.id_puesto
+            LEFT JOIN estatus_linea_telefonica elt ON lt.id_estatus_linea = elt.id_estatus_linea
+            LEFT JOIN inventario_celulares ic ON lt.numero = ic.numero
             LEFT JOIN modelos_celulares m ON ic.id_modelo = m.id_modelo
-            WHERE ic.numero IS NOT NULL AND TRIM(ic.numero) != ''
-            ORDER BY e.nombre ASC
+            ORDER BY e.nombre ASC, lt.numero ASC
         """
         df = pd.read_sql(query, conn)
         conn.close()
@@ -201,7 +150,7 @@ def obtener_dispositivos_disponibles_df():
     try:
         conn = obtener_conexion()
         query = """
-            SELECT '📱 Celular' AS Categoria, m.marca_modelo AS Descripcion, ic.imei AS `Serie / Identificador`, c.condicion_opcion AS Condicion, ic.observaciones
+            SELECT '📱 Celular' AS Categoria, COALESCE(m.marca_modelo, 'Celular') AS Descripcion, ic.imei AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(ic.observaciones, '') AS Observaciones
             FROM inventario_celulares ic
             LEFT JOIN modelos_celulares m ON ic.id_modelo = m.id_modelo
             LEFT JOIN condicion c ON ic.id_condicion = c.id_condicion
@@ -209,28 +158,28 @@ def obtener_dispositivos_disponibles_df():
 
             UNION ALL
 
-            SELECT '💻 Laptop' AS Categoria, CONCAT(il.marca, ' ', il.modelo) AS Descripcion, il.numero_serie AS `Serie / Identificador`, c.condicion_opcion AS Condicion, il.observaciones
+            SELECT '💻 Laptop' AS Categoria, CONCAT(COALESCE(il.marca, ''), ' ', COALESCE(il.modelo, ''), ' [', COALESCE(il.hostname, ''), ']') AS Descripcion, il.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(il.observaciones, '') AS Observaciones
             FROM inventario_laptops il
             LEFT JOIN condicion c ON il.id_condicion = c.id_condicion
             WHERE il.id_estatus_laptops = 4
 
             UNION ALL
 
-            SELECT '🖥️ CPU' AS Categoria, CONCAT(icp.marca, ' ', icp.modelo) AS Descripcion, icp.hostname AS `Serie / Identificador`, c.condicion_opcion AS Condicion, icp.observaciones
+            SELECT '🖥️ CPU' AS Categoria, CONCAT('CPU ', COALESCE(icp.marca, ''), ' ', COALESCE(icp.modelo, ''), ' [', COALESCE(icp.hostname, ''), ']') AS Descripcion, COALESCE(icp.hostname, CAST(icp.id_cpu AS CHAR)) AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(icp.observaciones, '') AS Observaciones
             FROM inventario_cpu icp
             LEFT JOIN condicion c ON icp.id_condicion = c.id_condicion
             WHERE icp.id_estatus_cpu = 4
 
             UNION ALL
 
-            SELECT '🖥️ Monitor' AS Categoria, CONCAT(im.marca, ' ', im.modelo) AS Descripcion, im.numero_serie AS `Serie / Identificador`, c.condicion_opcion AS Condicion, im.observaciones
+            SELECT '🖥️ Monitor' AS Categoria, CONCAT('Monitor ', COALESCE(im.marca, ''), ' ', COALESCE(im.modelo, '')) AS Descripcion, im.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(im.observaciones, '') AS Observaciones
             FROM inventario_monitores im
             LEFT JOIN condicion c ON im.id_condicion = c.id_condicion
             WHERE im.id_estatus_monitor = 4
 
             UNION ALL
 
-            SELECT '📱 Tablet' AS Categoria, CONCAT(it.marca, ' ', it.modelo) AS Descripcion, it.numero_serie AS `Serie / Identificador`, c.condicion_opcion AS Condicion, it.observaciones
+            SELECT '📱 Tablet' AS Categoria, CONCAT('Tablet ', COALESCE(it.marca, ''), ' ', COALESCE(it.modelo, '')) AS Descripcion, it.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(it.observaciones, '') AS Observaciones
             FROM inventario_tablets it
             LEFT JOIN condicion c ON it.id_condicion = c.id_condicion
             WHERE it.id_estatus_tablet = 4
@@ -248,12 +197,12 @@ def obtener_lista_distribucion_df():
         query = """
             SELECT 
                 CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS Nombre,
-                s.nombre_sucursal AS Sucursal,
-                d.nombre_departamento AS Departamento,
-                p.nombre_puesto AS Puesto,
-                ce.correo_gmail AS `Correo Gmail`,
-                ce.correo_corporativo AS `Correo Institucional`,
-                ic.numero AS Celular
+                COALESCE(s.nombre_sucursal, 'SIN SUCURSAL') AS Sucursal,
+                COALESCE(d.nombre_departamento, 'SIN DEPARTAMENTO') AS Departamento,
+                COALESCE(p.nombre_puesto, 'SIN PUESTO') AS Puesto,
+                COALESCE(ce.correo_gmail, '') AS `Correo Gmail`,
+                COALESCE(ce.correo_corporativo, '') AS `Correo Institucional`,
+                COALESCE(lt.numero, ic.numero, '') AS Celular
             FROM empleados e
             LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
             LEFT JOIN departamentos d ON e.id_departamento = d.id_departamento
@@ -269,12 +218,18 @@ def obtener_lista_distribucion_df():
             ) ce ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = ce.cod_clean
             LEFT JOIN (
                 SELECT 
+                    TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) AS cod_clean,
+                    MAX(numero) AS numero
+                FROM lineas_telefonicas
+                WHERE codigo_empleado IS NOT NULL AND TRIM(numero) != ''
+                GROUP BY cod_clean
+            ) lt ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = lt.cod_clean
+            LEFT JOIN (
+                SELECT 
                     TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) AS cod_clean, 
                     MAX(numero) AS numero
                 FROM inventario_celulares
-                WHERE codigo_empleado IS NOT NULL 
-                  AND numero IS NOT NULL 
-                  AND TRIM(numero) != ''
+                WHERE codigo_empleado IS NOT NULL AND numero IS NOT NULL AND TRIM(numero) != ''
                 GROUP BY cod_clean
             ) ic ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = ic.cod_clean
             WHERE e.id_estatus_empleado = 1
@@ -339,11 +294,17 @@ def render():
         st.subheader("👤 Consulta de Hardware Asignado por Colaborador")
         try:
             conn = obtener_conexion()
-            df_emp = pd.read_sql("SELECT codigo, CONCAT_WS(' ', nombre, apellido_paterno, apellido_materno) AS nom_comp FROM empleados WHERE id_estatus_empleado = 1 ORDER BY nom_comp ASC", conn)
+            df_emp = pd.read_sql("""
+                SELECT codigo, CONCAT_WS(' ', nombre, apellido_paterno, apellido_materno) AS nom_comp, s.nombre_sucursal AS sucursal
+                FROM empleados e
+                LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
+                WHERE e.id_estatus_empleado = 1 
+                ORDER BY nom_comp ASC
+            """, conn)
             conn.close()
 
             if not df_emp.empty:
-                dict_emp = dict(zip(df_emp["nom_comp"], df_emp["codigo"]))
+                dict_emp = {f"{r['nom_comp']} ({r['sucursal']})": r['codigo'] for _, r in df_emp.iterrows()}
                 emp_sel_nom = st.selectbox("Selecciona un Colaborador:", list(dict_emp.keys()))
                 cod_sel = dict_emp[emp_sel_nom]
 
@@ -361,7 +322,7 @@ def render():
     # TAB 2: REPORTE DE LÍNEAS
     # --------------------------------------------------------------------------
     with tab2:
-        st.subheader("📞 Reporte General de Líneas Telefónicas Asignadas")
+        st.subheader("📞 Reporte General de Líneas Telefónicas")
         df_lineas = obtener_reporte_lineas_df()
 
         if not df_lineas.empty:
@@ -378,9 +339,9 @@ def render():
                     type="primary"
                 )
             with col_l2:
-                st.caption(f"Total de líneas operativas asignadas: **{len(df_lineas)}**")
+                st.caption(f"Total de líneas registradas en sistema: **{len(df_lineas)}**")
         else:
-            st.info("No se encontraron líneas telefónicas asignadas actualmente.")
+            st.info("No se encontraron líneas telefónicas registradas.")
 
     # --------------------------------------------------------------------------
     # TAB 3: HARDWARE DISPONIBLE (STOCK)

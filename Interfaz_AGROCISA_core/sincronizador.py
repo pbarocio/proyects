@@ -3,6 +3,7 @@ import pandas as pd
 import unicodedata
 import database
 from correos_electronicos import actualizar_empleado_en_cascada_bdd
+from responsivas import procesar_desvinculacion_equipo
 
 def aplicar_estilos_pantalla():
     st.markdown("""
@@ -31,17 +32,12 @@ def limpiar_codigo(cod):
     except Exception:
         return txt.lstrip("0").strip()
 
-def obtener_columnas_tabla(cursor, tabla):
-    try:
-        cursor.execute(f"SHOW COLUMNS FROM {tabla}")
-        return [row[0] for row in cursor.fetchall()]
-    except Exception:
-        return []
-
 def obtener_catalogo_dict(tabla, col_id, col_nombre):
     try:
         conn = database.obtener_conexion()
-        query = f"SELECT {col_id}, {col_nombre} FROM {tabla} ORDER BY {col_nombre} ASC"
+        if not conn:
+            return {}
+        query = f"SELECT {col_id}, {col_nombre} FROM {tabla} ORDER BY {col_id} ASC"
         df = pd.read_sql(query, conn)
         conn.close()
         return {str(nom): int(cid) for nom, cid in zip(df[col_nombre], df[col_id])}
@@ -49,10 +45,10 @@ def obtener_catalogo_dict(tabla, col_id, col_nombre):
         return {}
 
 # ==============================================================================
-# OBTENCIÓN DE DATOS USANDO TU TÚNEL SSH DE DATABASE.PY
+# OBTENCIÓN DE DATOS USANDO EL TÚNEL SSH DE DATABASE.PY
 # ==============================================================================
 def obtener_datos_vps():
-    """Jala el DataFrame de empleados activos usando tu túnel SSH de database.py"""
+    """Jala el DataFrame de empleados activos usando el túnel SSH central."""
     try:
         df_vps = database.obtener_empleados_vps_df()
         if df_vps is None or df_vps.empty:
@@ -72,7 +68,7 @@ def obtener_datos_vps():
         return pd.DataFrame(), f"Error al ejecutar obtener_empleados_vps_df(): {e}"
 
 def obtener_datos_local():
-    """Consulta empleados locales directamente."""
+    """Consulta empleados locales directamente desde agrocisa_core."""
     try:
         conn = database.obtener_conexion()
         query = """
@@ -83,16 +79,19 @@ def obtener_datos_local():
                 e.apellido_materno,
                 CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS nombre_completo,
                 e.id_sucursal,
-                s.nombre_sucursal AS sucursal,
+                COALESCE(s.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
                 e.id_departamento,
-                d.nombre_departamento AS departamento,
+                COALESCE(d.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
                 e.id_puesto,
-                p.nombre_puesto AS puesto,
+                COALESCE(p.nombre_puesto, 'SIN PUESTO') AS puesto,
+                e.id_tipo_contrato,
+                COALESCE(tce.tipo_contrato, 'INTERNO') AS tipo_contrato,
                 e.id_estatus_empleado
             FROM empleados e
             LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
             LEFT JOIN departamentos d ON e.id_departamento = d.id_departamento
             LEFT JOIN puestos p ON e.id_puesto = p.id_puesto
+            LEFT JOIN tipo_contrato_empleados tce ON e.id_tipo_contrato = tce.id_tipo_contrato
             WHERE e.id_estatus_empleado = 1
         """
         df_loc = pd.read_sql(query, conn)
@@ -134,6 +133,10 @@ def ejecutar_diagnostico_completo():
                 "codigo_vps": row_v["codigo_disp"],
                 "sucursal": row_l.get("sucursal", "S/D"),
                 "puesto": row_l.get("puesto", "S/D"),
+                "id_sucursal": row_l.get("id_sucursal", 1),
+                "id_departamento": row_l.get("id_departamento", 1),
+                "id_puesto": row_l.get("id_puesto", 1),
+                "id_tipo_contrato": row_l.get("id_tipo_contrato", 1),
                 "row_vps": row_v.to_dict(),
                 "row_local": row_l.to_dict()
             })
@@ -144,7 +147,8 @@ def ejecutar_diagnostico_completo():
     altas_reales = vps_sin_loc_id.drop(index=idx_vps_homologados)
 
     es_externo = loc_reales_discrepantes["puesto"].astype(str).str.lower().str.contains("externo|asesor|proveedor|contratista") | \
-                 loc_reales_discrepantes["sucursal"].astype(str).str.lower().str.contains("externo|corporativo externo")
+                 loc_reales_discrepantes["sucursal"].astype(str).str.lower().str.contains("externo|corporativo externo") | \
+                 (loc_reales_discrepantes["id_tipo_contrato"] == 2)
 
     externos_protegidos = loc_reales_discrepantes[es_externo]
     bajas_reales = loc_reales_discrepantes[~es_externo]
@@ -164,58 +168,58 @@ def obtener_equipos_empleado(codigo_empleado):
     if not conn:
         return equipos
 
-    cod_clean = str(codigo_empleado).strip()
+    cod_clean = str(codigo_empleado).strip().lstrip("0")
     try:
         # Celulares
         df_cel = pd.read_sql("""
             SELECT ic.imei, ic.numero, m.marca_modelo
             FROM inventario_celulares ic
             LEFT JOIN modelos_celulares m ON ic.id_modelo = m.id_modelo
-            WHERE TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+            WHERE TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = %s
               AND ic.id_estatus_celular = 3
         """, conn, params=(cod_clean,))
         for _, r in df_cel.iterrows():
-            equipos.append({"tipo": "Celular", "id": r['imei'], "descr": f"📱 Celular: {r['imei']} - {r['marca_modelo'] or 'S/M'} (Línea: {r['numero'] or 'S/N'})"})
+            equipos.append({"tipo": "celular", "id": r['imei'], "descr": f"📱 Celular: {r['imei']} - {r['marca_modelo'] or 'S/M'} (Línea: {r['numero'] or 'S/N'})"})
 
         # Laptops
         df_lap = pd.read_sql("""
             SELECT il.numero_serie, il.marca, il.modelo, il.hostname
             FROM inventario_laptops il
-            WHERE TRIM(LEADING '0' FROM CAST(il.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+            WHERE TRIM(LEADING '0' FROM CAST(il.codigo_empleado AS CHAR)) = %s
               AND il.id_estatus_laptops = 3
         """, conn, params=(cod_clean,))
         for _, r in df_lap.iterrows():
-            equipos.append({"tipo": "Laptop", "id": r['numero_serie'], "descr": f"💻 Laptop: {r['numero_serie']} - {r['marca']} {r['modelo']} [{r['hostname']}]"})
+            equipos.append({"tipo": "laptop", "id": r['numero_serie'], "descr": f"💻 Laptop: {r['numero_serie']} - {r['marca']} {r['modelo']} [{r['hostname']}]"})
 
         # CPUs
         df_cpu = pd.read_sql("""
-            SELECT icp.hostname, icp.numero_serie
+            SELECT icp.id_cpu, icp.hostname, icp.numero_serie, icp.marca, icp.modelo
             FROM inventario_cpu icp
-            WHERE TRIM(LEADING '0' FROM CAST(icp.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+            WHERE TRIM(LEADING '0' FROM CAST(icp.codigo_empleado AS CHAR)) = %s
               AND icp.id_estatus_cpu = 3
         """, conn, params=(cod_clean,))
         for _, r in df_cpu.iterrows():
-            equipos.append({"tipo": "CPU", "id": r['hostname'], "descr": f"🖥️ CPU: {r['hostname']} - {r['numero_serie']}"})
+            equipos.append({"tipo": "cpu", "id": str(r['id_cpu']), "descr": f"🖥️ CPU: ID {r['id_cpu']} - {r['hostname']} ({r['marca']} {r['modelo']})"})
 
         # Monitores
         df_mon = pd.read_sql("""
             SELECT im.numero_serie, im.marca, im.modelo
             FROM inventario_monitores im
-            WHERE TRIM(LEADING '0' FROM CAST(im.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+            WHERE TRIM(LEADING '0' FROM CAST(im.codigo_empleado AS CHAR)) = %s
               AND im.id_estatus_monitor = 3
         """, conn, params=(cod_clean,))
         for _, r in df_mon.iterrows():
-            equipos.append({"tipo": "Monitor", "id": r['numero_serie'], "descr": f"🖥️ Monitor: {r['numero_serie']} - {r['marca']} {r['modelo']}"})
+            equipos.append({"tipo": "monitor", "id": r['numero_serie'], "descr": f"🖥️ Monitor: {r['numero_serie']} - {r['marca']} {r['modelo']}"})
 
         # Tablets
         df_tab = pd.read_sql("""
             SELECT it.numero_serie, it.marca, it.modelo
             FROM inventario_tablets it
-            WHERE TRIM(LEADING '0' FROM CAST(it.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+            WHERE TRIM(LEADING '0' FROM CAST(it.codigo_empleado AS CHAR)) = %s
               AND it.id_estatus_tablet = 3
         """, conn, params=(cod_clean,))
         for _, r in df_tab.iterrows():
-            equipos.append({"tipo": "Tablet", "id": r['numero_serie'], "descr": f"📱 Tablet: {r['numero_serie']} - {r['marca']} {r['modelo']}"})
+            equipos.append({"tipo": "tablet", "id": r['numero_serie'], "descr": f"📱 Tablet: {r['numero_serie']} - {r['marca']} {r['modelo']}"})
 
     except Exception:
         pass
@@ -224,42 +228,25 @@ def obtener_equipos_empleado(codigo_empleado):
 
     return equipos
 
-def guardar_alta_individual(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus, id_contrato=None):
+def guardar_alta_individual(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_contrato, id_estatus=1):
     conn = database.obtener_conexion()
     if not conn:
         return False, "No hay conexión con la base local."
     
     cursor = conn.cursor()
     try:
-        cols_emp = obtener_columnas_tabla(cursor, "empleados")
-        col_contrato_nom = next((c for c in ['id_tipo_contrato', 'id_contrato', 'tipo_contrato', 'id_tipo_contratacion'] if c in cols_emp), None)
-
-        if col_contrato_nom and id_contrato is not None:
-            q = f"""
-                INSERT INTO empleados (codigo, nombre, apellido_paterno, apellido_materno, id_sucursal, id_departamento, id_puesto, id_estatus_empleado, {col_contrato_nom})
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 
-                    nombre = VALUES(nombre), apellido_paterno = VALUES(apellido_paterno), apellido_materno = VALUES(apellido_materno),
-                    id_sucursal = VALUES(id_sucursal), id_departamento = VALUES(id_departamento), id_puesto = VALUES(id_puesto),
-                    id_estatus_empleado = VALUES(id_estatus_empleado), {col_contrato_nom} = VALUES({col_contrato_nom})
-            """
-            cursor.execute(q, (
-                str(codigo).strip().zfill(5), str(nombre).strip(), str(ap_pat).strip(),
-                str(ap_mat).strip() if ap_mat else None, int(id_suc), int(id_dep), int(id_pue), int(id_estatus), int(id_contrato)
-            ))
-        else:
-            q = """
-                INSERT INTO empleados (codigo, nombre, apellido_paterno, apellido_materno, id_sucursal, id_departamento, id_puesto, id_estatus_empleado)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                ON DUPLICATE KEY UPDATE 
-                    nombre = VALUES(nombre), apellido_paterno = VALUES(apellido_paterno), apellido_materno = VALUES(apellido_materno),
-                    id_sucursal = VALUES(id_sucursal), id_departamento = VALUES(id_departamento), id_puesto = VALUES(id_puesto),
-                    id_estatus_empleado = VALUES(id_estatus_empleado)
-            """
-            cursor.execute(q, (
-                str(codigo).strip().zfill(5), str(nombre).strip(), str(ap_pat).strip(),
-                str(ap_mat).strip() if ap_mat else None, int(id_suc), int(id_dep), int(id_pue), int(id_estatus)
-            ))
+        q = """
+            INSERT INTO empleados (codigo, nombre, apellido_paterno, apellido_materno, id_sucursal, id_departamento, id_puesto, id_tipo_contrato, id_estatus_empleado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+                nombre = VALUES(nombre), apellido_paterno = VALUES(apellido_paterno), apellido_materno = VALUES(apellido_materno),
+                id_sucursal = VALUES(id_sucursal), id_departamento = VALUES(id_departamento), id_puesto = VALUES(id_puesto),
+                id_tipo_contrato = VALUES(id_tipo_contrato), id_estatus_empleado = VALUES(id_estatus_empleado)
+        """
+        cursor.execute(q, (
+            str(codigo).strip().zfill(5), str(nombre).strip(), str(ap_pat).strip(),
+            str(ap_mat).strip() if ap_mat else None, int(id_suc), int(id_dep), int(id_pue), int(id_contrato), int(id_estatus)
+        ))
 
         conn.commit()
         return True, None
@@ -282,7 +269,7 @@ def render():
     dict_suc = obtener_catalogo_dict("sucursales", "id_sucursal", "nombre_sucursal")
     dict_dep = obtener_catalogo_dict("departamentos", "id_departamento", "nombre_departamento")
     dict_pue = obtener_catalogo_dict("puestos", "id_puesto", "nombre_puesto")
-    dict_contrato = obtener_catalogo_dict("tipos_contrato", "id_tipo_contrato", "tipo_contrato") if obtener_catalogo_dict("tipos_contrato", "id_tipo_contrato", "tipo_contrato") else {"Indeterminado": 1, "Determinado": 2, "Honorarios": 3}
+    dict_contrato = obtener_catalogo_dict("tipo_contrato_empleados", "id_tipo_contrato", "tipo_contrato")
 
     st.markdown("### ⚙️ Panel de Control de Sincronización")
     st.caption("Cruza de información entre MariaDB VPS (GoDaddy vía Túnel SSH) y BDD Local con conciliación automática por nombre.")
@@ -342,9 +329,10 @@ def render():
                                     nombre=r_v.get('nombre', ''),
                                     ap_pat=r_v.get('apellido_paterno', ''),
                                     ap_mat=r_v.get('apellido_materno', ''),
-                                    id_suc=int(r_v.get('id_sucursal', 1)),
-                                    id_dep=int(r_v.get('id_departamento', 1)),
-                                    id_pue=int(r_v.get('id_puesto', 1)),
+                                    id_suc=int(item['id_sucursal']),
+                                    id_dep=int(item['id_departamento']),
+                                    id_pue=int(item['id_puesto']),
+                                    id_contrato=int(item['id_tipo_contrato']),
                                     id_estatus=1
                                 )
                                 if exito:
@@ -370,16 +358,38 @@ def render():
                     row_emp = bajas_reales[bajas_reales["codigo_disp"] == cod_sel].iloc[0]
                     equipos = obtener_equipos_empleado(cod_sel)
 
-                    st.markdown(f"#### 📦 Equipos Asignados a `{cod_sel}` ({row_emp['sucursal']})")
+                    st.markdown(f"#### 📦 Equipos Asignados a `{row_emp['nombre_completo']}` ({row_emp['sucursal']})")
 
                     if equipos:
                         for eq in equipos:
                             with st.expander(f"⚙️ {eq['descr']}", expanded=True):
-                                c_e1, c_e2 = st.columns(2)
+                                c_e1, c_e2, c_e3 = st.columns([1.5, 2, 1])
                                 with c_e1:
-                                    st.selectbox(f"Nuevo estatus para {eq['tipo']}:", ["BAJA", "DISPONIBLE", "EN REPARACIÓN"], key=f"st_eq_{eq['id']}")
+                                    st_dest = st.selectbox(
+                                        f"Estatus destino ({eq['tipo']}):",
+                                        ["DISPONIBLE", "EN MANTENIMIENTO", "EN REPARACIÓN", "INACTIVO"],
+                                        key=f"st_eq_{eq['id']}"
+                                    )
                                 with c_e2:
-                                    st.text_input("Observaciones / Destino del equipo:", placeholder="Ej. Se queda en sucursal con el Gerente", key=f"obs_eq_{eq['id']}")
+                                    obs_dest = st.text_input(
+                                        "Observaciones / Destino:",
+                                        value="Baja de colaborador vía sincronizador",
+                                        key=f"obs_eq_{eq['id']}"
+                                    )
+                                with c_e3:
+                                    st.write("")
+                                    dict_est_lib = {"DISPONIBLE": 4, "EN MANTENIMIENTO": 5, "EN REPARACIÓN": 6, "INACTIVO": 2}
+                                    if st.button(f"💥 Liberar {eq['tipo']}", key=f"btn_lib_{eq['id']}"):
+                                        if procesar_desvinculacion_equipo(
+                                            tipo_equipo=eq['tipo'],
+                                            id_equipo=eq['id'],
+                                            nuevo_estatus_id=dict_est_lib[st_dest],
+                                            razon_motivo=obs_dest,
+                                            nombre_colaborador=f"{row_emp['nombre_completo']} (Cód: {cod_sel})"
+                                        ):
+                                            st.session_state["mensaje_exito_sync"] = f"🎉 ¡Equipo {eq['tipo']} ({eq['id']}) liberado correctamente con estatus: {st_dest}!"
+                                            del st.session_state["diag_data"]
+                                            st.rerun()
                     else:
                         st.info("Este colaborador no tiene equipos asignados en el inventario.")
             else:
@@ -455,8 +465,8 @@ def render():
                                     id_suc=int(dict_suc[suc_nom]),
                                     id_dep=int(dict_dep[dep_nom]),
                                     id_pue=int(dict_pue[pue_nom]),
-                                    id_estatus=1,
-                                    id_contrato=int(dict_contrato[contrato_nom]) if dict_contrato else None
+                                    id_contrato=int(dict_contrato[contrato_nom]),
+                                    id_estatus=1
                                 )
                                 if ok:
                                     st.session_state["mensaje_exito_sync"] = f"🎉 ¡Colaborador `{nom_alta.strip()} {pat_alta.strip()}` (Código: {cod_alta_sel}) registrado con éxito en `{suc_nom}` como `{pue_nom}`!"

@@ -9,16 +9,20 @@ SPREADSHEET_ID = "1FCJPGoTNAPjmBoZFt7VfdkLgsP7Q1431PJ_wgXvKbS4"
 CREDS_PATH = Path(__file__).parent / "credentials.json"
 
 def obtener_lista_distribucion_df():
+    """Genera la lista de distribución leyendo directamente desde MariaDB."""
     conn = obtener_conexion()
+    if not conn:
+        return pd.DataFrame()
+
     query = """
         SELECT 
             CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS Nombre,
-            s.nombre_sucursal AS Sucursal,
-            d.nombre_departamento AS Departamento,
-            p.nombre_puesto AS Puesto,
-            ce.correo_gmail AS `Correo Gmail`,
-            ce.correo_corporativo AS `Correo Institucional`,
-            ic.numero AS Celular
+            COALESCE(s.nombre_sucursal, 'SIN SUCURSAL') AS Sucursal,
+            COALESCE(d.nombre_departamento, 'SIN DEPARTAMENTO') AS Departamento,
+            COALESCE(p.nombre_puesto, 'SIN PUESTO') AS Puesto,
+            COALESCE(ce.correo_gmail, '') AS `Correo Gmail`,
+            COALESCE(ce.correo_corporativo, '') AS `Correo Institucional`,
+            COALESCE(lt.numero, ic.numero, '') AS Celular
         FROM empleados e
         LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
         LEFT JOIN departamentos d ON e.id_departamento = d.id_departamento
@@ -34,38 +38,55 @@ def obtener_lista_distribucion_df():
         ) ce ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = ce.cod_clean
         LEFT JOIN (
             SELECT 
+                TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) AS cod_clean,
+                MAX(numero) AS numero
+            FROM lineas_telefonicas
+            WHERE codigo_empleado IS NOT NULL AND TRIM(numero) != ''
+            GROUP BY cod_clean
+        ) lt ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = lt.cod_clean
+        LEFT JOIN (
+            SELECT 
                 TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) AS cod_clean, 
                 MAX(numero) AS numero
             FROM inventario_celulares
-            WHERE codigo_empleado IS NOT NULL 
-              AND numero IS NOT NULL 
-              AND TRIM(numero) != ''
+            WHERE codigo_empleado IS NOT NULL AND numero IS NOT NULL AND TRIM(numero) != ''
             GROUP BY cod_clean
         ) ic ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = ic.cod_clean
         WHERE e.id_estatus_empleado = 1
         ORDER BY Nombre ASC
     """
-    df = pd.read_sql(query, conn)
-    conn.close()
-    return df
+    try:
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return df
+    except Exception as e:
+        conn.close()
+        print(f"⚠️ Error al consultar lista de distribución: {e}")
+        return pd.DataFrame()
 
 def auto_sincronizar_google_sheet():
+    """Autentica con la Service Account y actualiza la hoja 'Colaboradores' en Google Drive."""
     try:
         if not CREDS_PATH.exists():
-            return False, f"No existe credentials.json en {CREDS_PATH}"
+            return False, f"No existe credentials.json en la ruta: {CREDS_PATH}"
 
         scopes = ["https://www.googleapis.com/auth/spreadsheets"]
         creds = Credentials.from_service_account_file(str(CREDS_PATH), scopes=scopes)
         client = gspread.authorize(creds)
 
         df = obtener_lista_distribucion_df()
+        if df.empty:
+            return False, "La consulta de base de datos no arrojó registros de empleados activos."
+
         df = df.fillna("")
 
+        # Apertura de hoja y vaciado previo para consistencia
         sheet = client.open_by_key(SPREADSHEET_ID).worksheet("Colaboradores")
         sheet.clear()
 
+        # Inserción con cabeceras completas
         valores = [df.columns.values.tolist()] + df.astype(str).values.tolist()
-        sheet.update("A1", valores)
+        sheet.update(range_name="A1", values=valores)
         return True, "OK"
     except Exception as e:
         err_msg = str(e)

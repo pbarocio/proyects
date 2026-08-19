@@ -1,9 +1,9 @@
-import streamlit as st
-import pandas as pd
-from datetime import datetime
 import io
 import os
 from pathlib import Path
+from datetime import datetime
+import streamlit as st
+import pandas as pd
 from dotenv import load_dotenv
 from docxtpl import DocxTemplate
 from num2words import num2words
@@ -77,20 +77,15 @@ def precio_a_letras(precio_raw):
 def obtener_catalogo_dict(tabla, col_id, col_nombre):
     try:
         conn = obtener_conexion()
-        query = f"SELECT {col_id}, {col_nombre} FROM {tabla} ORDER BY {col_nombre} ASC"
+        if not conn:
+            return {}
+        query = f"SELECT {col_id}, {col_nombre} FROM {tabla} ORDER BY {col_id} ASC"
         df = pd.read_sql(query, conn)
         conn.close()
-        return dict(zip(df[col_nombre], df[col_id]))
+        return dict(zip(df[col_nombre].astype(str), df[col_id].astype(int)))
     except Exception as e:
-        st.error(f"⚠️ Error al cargar catálogo {tabla}: {e}")
+        st.error(f"⚠️ Error al cargar catálogo '{tabla}': {e}")
         return {}
-
-def obtener_columnas_tabla(cursor, tabla):
-    try:
-        cursor.execute(f"SHOW COLUMNS FROM {tabla}")
-        return [row[0] for row in cursor.fetchall()]
-    except Exception:
-        return []
 
 # ==============================================================================
 # 2. CONSULTAS DE DATOS DE BDD
@@ -102,9 +97,9 @@ def obtener_empleados_activos_df():
             SELECT 
                 e.codigo,
                 CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS nombre_completo,
-                s.nombre_sucursal AS sucursal,
-                d.nombre_departamento AS departamento,
-                p.nombre_puesto AS puesto,
+                COALESCE(s.nombre_sucursal, 'SIN SUCURSAL') AS sucursal,
+                COALESCE(d.nombre_departamento, 'SIN DEPARTAMENTO') AS departamento,
+                COALESCE(p.nombre_puesto, 'SIN PUESTO') AS puesto,
                 ce.correo_gmail,
                 ce.correo_corporativo
             FROM empleados e
@@ -113,13 +108,13 @@ def obtener_empleados_activos_df():
             LEFT JOIN puestos p ON e.id_puesto = p.id_puesto
             LEFT JOIN (
                 SELECT 
-                    codigo_empleado,
+                    TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) AS cod_clean,
                     MAX(CASE WHEN id_tipo_correo = 2 THEN direccion_correo END) AS correo_gmail,
                     MAX(CASE WHEN id_tipo_correo = 1 THEN direccion_correo END) AS correo_corporativo
                 FROM correos_electronicos
                 WHERE id_estatus_correo = 1
-                GROUP BY codigo_empleado
-            ) ce ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = TRIM(LEADING '0' FROM CAST(ce.codigo_empleado AS CHAR))
+                GROUP BY cod_clean
+            ) ce ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = ce.cod_clean
             WHERE e.id_estatus_empleado = 1
             ORDER BY nombre_completo ASC
         """
@@ -138,13 +133,14 @@ def obtener_equipos_disponibles():
         return equipos
 
     try:
+        # 1. Celulares
         df_cel = pd.read_sql("""
             SELECT ic.imei, ic.numero, ic.numero_serie, m.marca_modelo AS equipo, COALESCE(m.precio, 0) AS precio, 
                    ic.id_condicion, c.condicion_opcion AS condicion, 
                    ic.id_cargador, ca.cargador_opcion AS cargador, 
                    ic.id_caja, caja.caja_opcion AS caja,
                    ic.id_estatus_celular, 
-                   COALESCE(lt.gb_promocion_2026, '') AS gb, 
+                   COALESCE(lt.gb_promocion_2026, lt.gb_2026, '') AS gb, 
                    COALESCE(ic.observaciones, '') AS observaciones, 
                    COALESCE(ic.comentarios, '') AS comentarios
             FROM inventario_celulares ic
@@ -163,14 +159,17 @@ def obtener_equipos_disponibles():
             lbl = f"IMEI: {r['imei']} - {r['equipo']} (Línea: {num_clean}){obs_txt}"
             equipos["celulares"].append({"id": r['imei'], "label": lbl, "data": r.to_dict()})
 
+        # 2. Laptops
         df_lap = pd.read_sql("""
             SELECT il.numero_serie, il.marca, il.modelo, il.hostname, 
+                   il.procesador, il.memoria_ram, ht.hdd_opcion AS tipo_hdd, il.almacenamiento,
                    COALESCE(il.observaciones, '') AS observaciones, 
                    COALESCE(il.comentarios, '') AS comentarios, 
                    il.id_condicion, con.condicion_opcion AS condicion_lap, 
                    il.id_cargador, car.cargador_opcion AS cargador, 
                    il.id_estatus_laptops, COALESCE(il.precio, 0) AS precio
             FROM inventario_laptops il
+            LEFT JOIN hdd_tipo ht ON il.id_hdd_tipo = ht.id_hdd_tipo
             LEFT JOIN condicion con ON il.id_condicion = con.id_condicion
             LEFT JOIN cargadores car ON il.id_cargador = car.id_cargador
             WHERE il.id_estatus_laptops = 4
@@ -181,12 +180,14 @@ def obtener_equipos_disponibles():
             lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']} [{r['hostname']}]{obs_txt}"
             equipos["laptops"].append({"id": r['numero_serie'], "label": lbl, "data": r.to_dict()})
 
+        # 3. CPUs
         df_cpu = pd.read_sql("""
-            SELECT icp.hostname, icp.numero_serie, icp.procesador, icp.memoria_ram, icp.almacenamiento, 
+            SELECT icp.id_cpu, icp.hostname, icp.marca, icp.modelo, icp.numero_serie, icp.procesador, icp.memoria_ram, icp.almacenamiento, 
                    thd.hdd_opcion AS tipo_hdd, icp.id_condicion, con.condicion_opcion AS condicion, 
                    icp.id_estatus_cpu, 
                    COALESCE(icp.observaciones, '') AS observaciones, 
-                   COALESCE(icp.comentarios, '') AS comentarios, 0 AS precio
+                   COALESCE(icp.comentarios, '') AS comentarios, 
+                   COALESCE(icp.precio, 0) AS precio
             FROM inventario_cpu icp
             LEFT JOIN hdd_tipo thd ON icp.id_hdd_tipo = thd.id_hdd_tipo
             LEFT JOIN condicion con ON icp.id_condicion = con.id_condicion
@@ -195,15 +196,18 @@ def obtener_equipos_disponibles():
         for _, r in df_cpu.iterrows():
             obs_clean = limpiar_str(r['observaciones'])
             obs_txt = f" | Obs: {obs_clean}" if obs_clean else ""
-            lbl = f"Host: {r['hostname']} - Serie: {r['numero_serie']}{obs_txt}"
-            equipos["cpus"].append({"id": r['hostname'], "label": lbl, "data": r.to_dict()})
+            lbl = f"ID: {r['id_cpu']} | Host: {r['hostname']} ({r['marca']} {r['modelo']}){obs_txt}"
+            equipos["cpus"].append({"id": r['id_cpu'], "label": lbl, "data": r.to_dict()})
 
+        # 4. Monitores
         df_mon = pd.read_sql("""
-            SELECT imon.numero_serie, imon.marca, imon.modelo, imon.id_condicion, 
+            SELECT imon.numero_serie, imon.marca, imon.modelo, imon.id_condicion, con.condicion_opcion AS condicion,
                    imon.id_estatus_monitor, 
                    COALESCE(imon.observaciones, '') AS observaciones, 
-                   COALESCE(imon.comentarios, '') AS comentarios, 0 AS precio
+                   COALESCE(imon.comentarios, '') AS comentarios, 
+                   COALESCE(imon.precio, 0) AS precio
             FROM inventario_monitores imon
+            LEFT JOIN condicion con ON imon.id_condicion = con.id_condicion
             WHERE imon.id_estatus_monitor = 4
         """, conn)
         for _, r in df_mon.iterrows():
@@ -212,13 +216,15 @@ def obtener_equipos_disponibles():
             lbl = f"Serie: {r['numero_serie']} - {r['marca']} {r['modelo']}{obs_txt}"
             equipos["monitores"].append({"id": r['numero_serie'], "label": lbl, "data": r.to_dict()})
 
+        # 5. Tablets
         df_tab = pd.read_sql("""
             SELECT itab.numero_serie, itab.imei, itab.marca, itab.modelo, 
                    itab.id_condicion, con.condicion_opcion AS condicion, 
                    itab.id_cargador, car.cargador_opcion AS cargador, 
                    itab.id_estatus_tablet, 
                    COALESCE(itab.observaciones, '') AS observaciones, 
-                   COALESCE(itab.comentarios, '') AS comentarios, 0 AS precio
+                   COALESCE(itab.comentarios, '') AS comentarios, 
+                   COALESCE(itab.precio, 0) AS precio
             FROM inventario_tablets itab
             LEFT JOIN condicion con ON itab.id_condicion = con.id_condicion
             LEFT JOIN cargadores car ON itab.id_cargador = car.id_cargador
@@ -237,8 +243,69 @@ def obtener_equipos_disponibles():
 
     return equipos
 
+def obtener_hardware_asignado_desvinculacion_df():
+    """Consulta modularmente los equipos asignados para evitar errores de colación en MariaDB."""
+    conn = obtener_conexion()
+    if not conn:
+        return pd.DataFrame()
+
+    try:
+        q_cel = """
+            SELECT 'celular' AS tipo, ic.imei AS id, ic.numero_serie, CONCAT(COALESCE(m.marca_modelo, 'Celular'), ' (IMEI: ', ic.imei, ')') AS descripcion, 
+                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, ic.codigo_empleado
+            FROM inventario_celulares ic
+            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
+            LEFT JOIN modelos_celulares m ON ic.id_modelo = m.id_modelo
+            WHERE ic.id_estatus_celular = 3
+        """
+        q_lap = """
+            SELECT 'laptop' AS tipo, il.numero_serie AS id, il.numero_serie, CONCAT(COALESCE(il.marca, ''), ' ', COALESCE(il.modelo, ''), ' [', COALESCE(il.hostname, ''), ']') AS descripcion, 
+                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, il.codigo_empleado
+            FROM inventario_laptops il
+            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(il.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
+            WHERE il.id_estatus_laptops = 3
+        """
+        q_cpu = """
+            SELECT 'cpu' AS tipo, CAST(icp.id_cpu AS CHAR) AS id, icp.numero_serie, CONCAT('CPU ', COALESCE(icp.marca, ''), ' ', COALESCE(icp.modelo, ''), ' [', COALESCE(icp.hostname, ''), ']') AS descripcion, 
+                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, icp.codigo_empleado
+            FROM inventario_cpu icp
+            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(icp.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
+            WHERE icp.id_estatus_cpu = 3
+        """
+        q_mon = """
+            SELECT 'monitor' AS tipo, im.numero_serie AS id, im.numero_serie, CONCAT('Monitor ', COALESCE(im.marca, ''), ' ', COALESCE(im.modelo, ''), ' (S/N: ', COALESCE(im.numero_serie, ''), ')') AS descripcion, 
+                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, im.codigo_empleado
+            FROM inventario_monitores im
+            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(im.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
+            WHERE im.id_estatus_monitor = 3
+        """
+        q_tab = """
+            SELECT 'tablet' AS tipo, it.numero_serie AS id, it.numero_serie, CONCAT('Tablet ', COALESCE(it.marca, ''), ' ', COALESCE(it.modelo, ''), ' (S/N: ', COALESCE(it.numero_serie, ''), ')') AS descripcion, 
+                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, it.codigo_empleado
+            FROM inventario_tablets it
+            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(it.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
+            WHERE it.id_estatus_tablet = 3
+        """
+
+        dfs = []
+        for q in [q_cel, q_lap, q_cpu, q_mon, q_tab]:
+            df_p = pd.read_sql(q, conn)
+            if not df_p.empty:
+                dfs.append(df_p)
+
+        conn.close()
+
+        if dfs:
+            return pd.concat(dfs, ignore_index=True)
+        return pd.DataFrame()
+
+    except Exception as e:
+        conn.close()
+        st.error(f"⚠️ Error al obtener equipos asignados: {e}")
+        return pd.DataFrame()
+
 # ==============================================================================
-# 3. TRANSACCIONES: ASIGNACIÓN Y DESVINCULACIÓN (CON AMARRE DE LÍNEA Y EMPLEADO)
+# 3. TRANSACCIONES: ASIGNACIÓN Y DESVINCULACIÓN
 # ==============================================================================
 def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, mon_sel, tab_sel):
     try:
@@ -247,67 +314,17 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
         f_hoy = datetime.now().strftime('%Y-%m-%d')
         codigo_emp_exacto = str(codigo_empleado).strip().zfill(5)
 
-        def cerrar_responsivas_previas(tabla, col_id_nombre, valor_id):
-            cols_reales = obtener_columnas_tabla(cursor, tabla)
-            col_estatus_nom = None
-            for cand in ['id_status', 'id_estatus', 'id_estatus_responsiva', 'id_status_responsiva']:
-                if cand in cols_reales:
-                    col_estatus_nom = cand
-                    break
-            
-            if col_estatus_nom and col_id_nombre in cols_reales:
-                q_close = f"UPDATE {tabla} SET {col_estatus_nom} = 2 WHERE {col_id_nombre} = %s AND {col_estatus_nom} = 1"
-                cursor.execute(q_close, (valor_id,))
-
-        def ejecutar_insert_adaptativo(tabla, dict_valores):
-            cols_reales = obtener_columnas_tabla(cursor, tabla)
-            col_estatus_nom = None
-            for cand in ['id_status', 'id_estatus', 'id_estatus_responsiva', 'id_status_responsiva']:
-                if cand in cols_reales:
-                    col_estatus_nom = cand
-                    break
-
-            campos_f, vals_f = [], []
-            for col, val in dict_valores.items():
-                if col in cols_reales:
-                    campos_f.append(col)
-                    vals_f.append(val)
-
-            if col_estatus_nom:
-                campos_f.append(col_estatus_nom)
-                vals_f.append(1)
-
-            cols_str = ", ".join(campos_f)
-            placeholders = ", ".join(["%s"] * len(vals_f))
-            cursor.execute(f"INSERT INTO {tabla} ({cols_str}) VALUES ({placeholders})", tuple(vals_f))
-
         # 1. Celular
         if cel_sel:
             d = cel_sel['data']
             num_final = limpiar_str(d.get('num_edit')) or None
 
-            cerrar_responsivas_previas("responsivas_celulares", "imei", d['imei'])
+            cursor.execute("UPDATE responsivas_celulares SET id_status = 2 WHERE imei = %s AND id_status = 1", (d['imei'],))
 
             if num_final:
-                cerrar_responsivas_previas("responsivas_celulares", "numero", num_final)
-
-                cursor.execute("""
-                    UPDATE inventario_celulares 
-                    SET numero = NULL 
-                    WHERE numero = %s AND imei != %s
-                """, (num_final, d['imei']))
-
-                # 👈 AMARRE DE CÓDIGO DIRECTO Y ADAPTATIVO A LA TABLA DE LÍNEAS
-                cols_lt = obtener_columnas_tabla(cursor, "lineas_telefonicas")
-                col_emp_lt = next((c for c in ['codigo_empleado', 'codigo', 'id_empleado'] if c in cols_lt), 'codigo_empleado')
-                col_est_lt = next((c for c in ['id_estatus_linea', 'id_estatus', 'id_status'] if c in cols_lt), 'id_estatus_linea')
-
-                q_linea = f"""
-                    UPDATE lineas_telefonicas 
-                    SET {col_est_lt} = 3, {col_emp_lt} = %s 
-                    WHERE numero = %s
-                """
-                cursor.execute(q_linea, (codigo_emp_exacto, num_final))
+                cursor.execute("UPDATE responsivas_celulares SET id_status = 2 WHERE numero = %s AND id_status = 1", (num_final,))
+                cursor.execute("UPDATE inventario_celulares SET numero = NULL WHERE numero = %s AND imei != %s", (num_final, d['imei']))
+                cursor.execute("UPDATE lineas_telefonicas SET id_estatus_linea = 3, codigo_empleado = %s WHERE numero = %s", (codigo_emp_exacto, num_final))
 
             cursor.execute("""
                 UPDATE inventario_celulares 
@@ -327,14 +344,15 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
                 d['imei']
             ))
 
-            ejecutar_insert_adaptativo("responsivas_celulares", {
-                "fecha_entrega": f_hoy, "codigo_empleado": codigo_emp_exacto, "numero": num_final, "imei": d['imei']
-            })
+            cursor.execute("""
+                INSERT INTO responsivas_celulares (fecha_entrega, codigo_empleado, numero, imei, id_status)
+                VALUES (%s, %s, %s, %s, 1)
+            """, (f_hoy, codigo_emp_exacto, num_final, d['imei']))
 
         # 2. Laptop
         if lap_sel:
             d = lap_sel['data']
-            cerrar_responsivas_previas("responsivas_laptops", "numero_serie", d['numero_serie'])
+            cursor.execute("UPDATE responsivas_laptops SET id_status = 2 WHERE numero_serie = %s AND id_status = 1", (d['numero_serie'],))
             
             cursor.execute("""
                 UPDATE inventario_laptops 
@@ -352,41 +370,40 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
                 d['numero_serie']
             ))
             
-            ejecutar_insert_adaptativo("responsivas_laptops", {
-                "fecha_entrega": f_hoy, "codigo_empleado": codigo_emp_exacto, "numero_serie": d['numero_serie']
-            })
+            cursor.execute("""
+                INSERT INTO responsivas_laptops (fecha_entrega, codigo_empleado, numero_serie, id_status)
+                VALUES (%s, %s, %s, 1)
+            """, (f_hoy, codigo_emp_exacto, d['numero_serie']))
 
         # 3. CPU
         if cpu_sel:
             d = cpu_sel['data']
-            cerrar_responsivas_previas("responsivas_cpu", "hostname", d['hostname'])
+            id_cpu_val = int(d['id_cpu'])
+            cursor.execute("UPDATE responsivas_cpu SET id_status = 2 WHERE id_cpu = %s AND id_status = 1", (id_cpu_val,))
             
             cursor.execute("""
                 UPDATE inventario_cpu 
                 SET id_estatus_cpu = %s, codigo_empleado = %s, 
                     id_condicion = %s, observaciones = %s, comentarios = %s 
-                WHERE hostname = %s
+                WHERE id_cpu = %s
             """, (
                 d.get('estatus_edit', 3), 
                 codigo_emp_exacto, 
                 d.get('cond_edit'), 
                 limpiar_str(d.get('obs_edit')) or None, 
                 limpiar_str(d.get('com_edit')) or None, 
-                d['hostname']
+                id_cpu_val
             ))
             
-            cursor.execute("SELECT id_cpu FROM inventario_cpu WHERE hostname = %s", (d['hostname'],))
-            r_cpu = cursor.fetchone()
-            id_cpu_val = r_cpu[0] if r_cpu else None
-
-            ejecutar_insert_adaptativo("responsivas_cpu", {
-                "fecha_entrega": f_hoy, "codigo_empleado": codigo_emp_exacto, "hostname": d['hostname'], "id_cpu": id_cpu_val
-            })
+            cursor.execute("""
+                INSERT INTO responsivas_cpu (id_cpu, fecha_entrega, codigo_empleado, id_status)
+                VALUES (%s, %s, %s, 1)
+            """, (id_cpu_val, f_hoy, codigo_emp_exacto))
 
         # 4. Monitor
         if mon_sel:
             d = mon_sel['data']
-            cerrar_responsivas_previas("responsivas_monitores", "numero_serie", d['numero_serie'])
+            cursor.execute("UPDATE responsivas_monitores SET id_status = 2 WHERE numero_serie = %s AND id_status = 1", (d['numero_serie'],))
             
             cursor.execute("""
                 UPDATE inventario_monitores 
@@ -402,14 +419,15 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
                 d['numero_serie']
             ))
             
-            ejecutar_insert_adaptativo("responsivas_monitores", {
-                "fecha_entrega": f_hoy, "codigo_empleado": codigo_emp_exacto, "numero_serie": d['numero_serie']
-            })
+            cursor.execute("""
+                INSERT INTO responsivas_monitores (fecha_entrega, codigo_empleado, numero_serie, id_status)
+                VALUES (%s, %s, %s, 1)
+            """, (f_hoy, codigo_emp_exacto, d['numero_serie']))
 
         # 5. Tablet
         if tab_sel:
             d = tab_sel['data']
-            cerrar_responsivas_previas("responsivas_tablets", "numero_serie", d['numero_serie'])
+            cursor.execute("UPDATE responsivas_tablets SET id_status = 2 WHERE numero_serie = %s AND id_status = 1", (d['numero_serie'],))
             
             cursor.execute("""
                 UPDATE inventario_tablets 
@@ -427,9 +445,10 @@ def procesar_asignacion_responsiva(codigo_empleado, cel_sel, lap_sel, cpu_sel, m
                 d['numero_serie']
             ))
             
-            ejecutar_insert_adaptativo("responsivas_tablets", {
-                "fecha_entrega": f_hoy, "codigo_empleado": codigo_emp_exacto, "numero_serie": d['numero_serie']
-            })
+            cursor.execute("""
+                INSERT INTO responsivas_tablets (fecha_entrega, codigo_empleado, numero_serie, id_status)
+                VALUES (%s, %s, %s, 1)
+            """, (f_hoy, codigo_emp_exacto, d['numero_serie']))
 
         conn.commit()
         conn.close()
@@ -455,8 +474,8 @@ def procesar_desvinculacion_equipo(tipo_equipo, id_equipo, nuevo_estatus_id, raz
                 "resp": "responsivas_laptops", "col_resp_id": "numero_serie"
             },
             "cpu": {
-                "inv": "inventario_cpu", "col_id": "hostname", "col_est": "id_estatus_cpu",
-                "resp": "responsivas_cpu", "col_resp_id": "hostname"
+                "inv": "inventario_cpu", "col_id": "id_cpu", "col_est": "id_estatus_cpu",
+                "resp": "responsivas_cpu", "col_resp_id": "id_cpu"
             },
             "monitor": {
                 "inv": "inventario_monitores", "col_id": "numero_serie", "col_est": "id_estatus_monitor",
@@ -472,17 +491,10 @@ def procesar_desvinculacion_equipo(tipo_equipo, id_equipo, nuevo_estatus_id, raz
         if not cfg:
             return False
 
-        cols_resp = obtener_columnas_tabla(cursor, cfg['resp'])
-        col_estatus_nom = None
-        for cand in ['id_status', 'id_estatus', 'id_estatus_responsiva', 'id_status_responsiva']:
-            if cand in cols_resp:
-                col_estatus_nom = cand
-                break
+        # 1. Cerrar responsiva activa
+        cursor.execute(f"UPDATE {cfg['resp']} SET id_status = 2 WHERE {cfg['col_resp_id']} = %s AND id_status = 1", (id_equipo,))
 
-        if col_estatus_nom and cfg['col_resp_id'] in cols_resp:
-            q_close = f"UPDATE {cfg['resp']} SET {col_estatus_nom} = 2 WHERE {cfg['col_resp_id']} = %s AND {col_estatus_nom} = 1"
-            cursor.execute(q_close, (id_equipo,))
-
+        # 2. Si es celular, liberar la línea telefónica
         if tipo_equipo == "celular":
             cursor.execute("SELECT numero FROM inventario_celulares WHERE imei = %s", (id_equipo,))
             res_num = cursor.fetchone()
@@ -494,6 +506,7 @@ def procesar_desvinculacion_equipo(tipo_equipo, id_equipo, nuevo_estatus_id, raz
                     WHERE numero = %s AND id_estatus_linea != 5
                 """, (num_asig,))
 
+        # 3. Actualizar inventario
         texto_historial = f"[DESVINCULADO {f_hoy}{colab_txt}]: {razon_motivo.strip()}"
 
         q_release = f"""
@@ -562,9 +575,9 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'imei': limpiar_str(d.get('imei')), 
             'numero_serie': limpiar_str(d.get('numero_serie')),
             'gb': limpiar_str(d.get('gb')), 
-            'condicion': limpiar_str(d.get('cond_nom', d.get('condicion')), 'Bueno'),
-            'cargador': limpiar_str(d.get('carg_nom', d.get('cargador')), 'Sí'), 
-            'caja': limpiar_str(d.get('caja_nom', d.get('caja')), 'Sí'),
+            'condicion': limpiar_str(d.get('cond_nom', d.get('condicion')), 'Buenas condiciones'),
+            'cargador': limpiar_str(d.get('carg_nom', d.get('cargador')), 'CON Cargador Original y Cable Original'), 
+            'caja': limpiar_str(d.get('caja_nom', d.get('caja')), 'Con caja'),
             'comentarios': limpiar_str(d.get('com_edit', d.get('comentarios'))),
             'precio': formatear_precio(d.get('precio')),
             'precio_letras': precio_a_letras(d.get('precio'))
@@ -579,9 +592,14 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'folio': folio_lap,
             'marca': limpiar_str(d.get('marca')), 
             'modelo': limpiar_str(d.get('modelo')),
+            'hostname': limpiar_str(d.get('hostname')),
             'numero_serie': limpiar_str(d.get('numero_serie')), 
-            'condicion_lap': limpiar_str(d.get('cond_nom', d.get('condicion_lap')), 'Bueno'),
-            'cargador': limpiar_str(d.get('carg_nom', d.get('cargador')), 'Sí'),
+            'procesador': limpiar_str(d.get('procesador')),
+            'memoria_ram': limpiar_str(d.get('memoria_ram')),
+            'tipo_hdd': limpiar_str(d.get('tipo_hdd')),
+            'almacenamiento': limpiar_str(d.get('almacenamiento')),
+            'condicion_lap': limpiar_str(d.get('cond_nom', d.get('condicion_lap')), 'Buenas condiciones'),
+            'cargador': limpiar_str(d.get('carg_nom', d.get('cargador')), 'CON Cargador Original y Cable Original'),
             'comentarios': limpiar_str(d.get('com_edit', d.get('comentarios'))),
             'precio': formatear_precio(d.get('precio')),
             'precio_letras': precio_a_letras(d.get('precio'))
@@ -594,12 +612,15 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
         d = cpu_sel['data']
         ctx = {**ctx_base,
             'folio': folio_cpu,
+            'marca': limpiar_str(d.get('marca')),
+            'modelo': limpiar_str(d.get('modelo')),
             'hostname': limpiar_str(d.get('hostname')), 
+            'numero_serie': limpiar_str(d.get('numero_serie')),
             'procesador': limpiar_str(d.get('procesador')),
             'memoria_ram': limpiar_str(d.get('memoria_ram')), 
             'tipo_hdd': limpiar_str(d.get('tipo_hdd')),
             'almacenamiento': limpiar_str(d.get('almacenamiento')), 
-            'condicion': limpiar_str(d.get('cond_nom', d.get('condicion')), 'Bueno'),
+            'condicion': limpiar_str(d.get('cond_nom', d.get('condicion')), 'Buenas condiciones'),
             'comentarios': limpiar_str(d.get('com_edit', d.get('comentarios'))),
             'precio': formatear_precio(d.get('precio')),
             'precio_letras': precio_a_letras(d.get('precio'))
@@ -615,6 +636,7 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'marca': limpiar_str(d.get('marca')), 
             'modelo': limpiar_str(d.get('modelo')),
             'numero_serie': limpiar_str(d.get('numero_serie')),
+            'condicion': limpiar_str(d.get('cond_nom', d.get('condicion')), 'Buenas condiciones'),
             'comentarios': limpiar_str(d.get('com_edit', d.get('comentarios'))),
             'precio': formatear_precio(d.get('precio')),
             'precio_letras': precio_a_letras(d.get('precio'))
@@ -631,8 +653,8 @@ def generar_documentos_responsivas(emp_row, cel_sel, lap_sel, cpu_sel, mon_sel, 
             'modelo': limpiar_str(d.get('modelo')),
             'imei': limpiar_str(d.get('imei')), 
             'numero_serie': limpiar_str(d.get('numero_serie')),
-            'condicion': limpiar_str(d.get('cond_nom', d.get('condicion')), 'Bueno'), 
-            'cargador': limpiar_str(d.get('carg_nom', d.get('cargador')), 'Sí'),
+            'condicion': limpiar_str(d.get('cond_nom', d.get('condicion')), 'Buenas condiciones'), 
+            'cargador': limpiar_str(d.get('carg_nom', d.get('cargador')), 'CON Cargador Original y Cable Original'),
             'comentarios': limpiar_str(d.get('com_edit', d.get('comentarios'))),
             'precio': formatear_precio(d.get('precio')),
             'precio_letras': precio_a_letras(d.get('precio'))
@@ -845,49 +867,7 @@ def render():
             st.success(st.session_state["mensaje_exito_desv"])
             del st.session_state["mensaje_exito_desv"]
 
-        conn = obtener_conexion()
-        query_asignados = """
-            SELECT 'celular' AS tipo, ic.imei AS id, ic.numero_serie, CONCAT(m.marca_modelo, ' (IMEI: ', ic.imei, ')') AS descripcion, 
-                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, ic.codigo_empleado
-            FROM inventario_celulares ic
-            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
-            LEFT JOIN modelos_celulares m ON ic.id_modelo = m.id_modelo
-            WHERE ic.id_estatus_celular = 3
-
-            UNION ALL
-
-            SELECT 'laptop' AS tipo, il.numero_serie AS id, il.numero_serie, CONCAT(il.marca, ' ', il.modelo, ' [', il.hostname, ']'), 
-                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, il.codigo_empleado
-            FROM inventario_laptops il
-            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(il.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
-            WHERE il.id_estatus_laptops = 3
-
-            UNION ALL
-
-            SELECT 'cpu' AS tipo, icp.hostname AS id, icp.numero_serie, CONCAT('CPU ', icp.marca, ' ', icp.modelo, ' [', icp.hostname, ']'), 
-                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, icp.codigo_empleado
-            FROM inventario_cpu icp
-            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(icp.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
-            WHERE icp.id_estatus_cpu = 3
-
-            UNION ALL
-
-            SELECT 'monitor' AS tipo, im.numero_serie AS id, im.numero_serie, CONCAT('Monitor ', im.marca, ' ', im.modelo, ' (S/N: ', im.numero_serie, ')'), 
-                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, im.codigo_empleado
-            FROM inventario_monitores im
-            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(im.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
-            WHERE im.id_estatus_monitor = 3
-
-            UNION ALL
-
-            SELECT 'tablet' AS tipo, it.numero_serie AS id, it.numero_serie, CONCAT('Tablet ', it.marca, ' ', it.modelo, ' (S/N: ', it.numero_serie, ')'), 
-                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, it.codigo_empleado
-            FROM inventario_tablets it
-            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(it.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
-            WHERE it.id_estatus_tablet = 3
-        """
-        df_asig = pd.read_sql(query_asignados, conn)
-        conn.close()
+        df_asig = obtener_hardware_asignado_desvinculacion_df()
 
         if not df_asig.empty:
             lista_opciones = [
@@ -947,3 +927,5 @@ def render():
                 st.info("👆 Selecciona un equipo de la lista desplegable de arriba para abrir el formulario de recepción.")
         else:
             st.info("No hay ningún equipo asignado actualmente en la base de datos.")
+
+render_responsivas = render
