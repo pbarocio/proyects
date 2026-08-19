@@ -13,84 +13,19 @@ def aplicar_estilos_pantalla():
         </style>
     """, unsafe_allow_html=True)
 
-def obtener_columnas_tabla(cursor, tabla):
-    try:
-        cursor.execute(f"SHOW COLUMNS FROM {tabla}")
-        return [row[0] for row in cursor.fetchall()]
-    except Exception:
-        return []
-
 def obtener_catalogo_dict(tabla, col_id, col_nombre):
+    """Consulta catálogos directos sin diccionarios inventados."""
     try:
         conn = obtener_conexion()
-        query = f"SELECT {col_id}, {col_nombre} FROM {tabla} ORDER BY {col_nombre} ASC"
+        if not conn:
+            return {}
+        query = f"SELECT {col_id}, {col_nombre} FROM {tabla} ORDER BY {col_id} ASC"
         df = pd.read_sql(query, conn)
         conn.close()
         return {str(nom): int(cid) for nom, cid in zip(df[col_nombre], df[col_id])}
-    except Exception:
+    except Exception as e:
+        st.error(f"⚠️ Error al cargar catálogo '{tabla}': {e}")
         return {}
-
-def obtener_catalogo_estatus_correos():
-    """Consulta directamente la tabla oficial estatus_correos_electronicos."""
-    tablas_posibles = [
-        'estatus_correos_electronicos',
-        'estatus_correo_electronico',
-        'estatus_correos',
-        'estatus_correo'
-    ]
-    for tabla in tablas_posibles:
-        try:
-            conn = obtener_conexion()
-            cursor = conn.cursor()
-            cursor.execute(f"SHOW TABLES LIKE '{tabla}'")
-            if cursor.fetchone():
-                cols = obtener_columnas_tabla(cursor, tabla)
-                col_id = next((c for c in cols if 'id' in c.lower()), cols[0])
-                col_nom = next((c for c in cols if any(k in c.lower() for k in ['nom', 'estatus', 'desc', 'opcion']) and c != col_id), cols[1] if len(cols) > 1 else cols[0])
-                
-                df = pd.read_sql(f"SELECT {col_id}, {col_nom} FROM {tabla} ORDER BY {col_id}", conn)
-                conn.close()
-                if not df.empty:
-                    return {str(nom): int(cid) for nom, cid in zip(df[col_nom], df[col_id])}
-            conn.close()
-        except Exception:
-            pass
-
-    return {
-        "ACTIVO": 1,
-        "INACTIVO": 2
-    }
-
-def obtener_catalogo_tipos_correo():
-    """Consulta la tabla de tipos de correos."""
-    tablas_posibles = [
-        'tipos_correos_electronicos',
-        'tipo_correos_electronicos',
-        'tipos_correo',
-        'tipo_correo'
-    ]
-    for tabla in tablas_posibles:
-        try:
-            conn = obtener_conexion()
-            cursor = conn.cursor()
-            cursor.execute(f"SHOW TABLES LIKE '{tabla}'")
-            if cursor.fetchone():
-                cols = obtener_columnas_tabla(cursor, tabla)
-                col_id = next((c for c in cols if 'id' in c.lower()), cols[0])
-                col_nom = next((c for c in cols if any(k in c.lower() for k in ['nom', 'tipo', 'desc', 'opcion']) and c != col_id), cols[1] if len(cols) > 1 else cols[0])
-                
-                df = pd.read_sql(f"SELECT {col_id}, {col_nom} FROM {tabla} ORDER BY {col_id}", conn)
-                conn.close()
-                if not df.empty:
-                    return {str(nom): int(cid) for nom, cid in zip(df[col_nom], df[col_id])}
-            conn.close()
-        except Exception:
-            pass
-
-    return {
-        "Corporativo": 1,
-        "Gmail": 2
-    }
 
 def verificar_correo_duplicado_info(direccion, id_correo_actual=None):
     """Retorna si existe un duplicado y los datos del registro en conflicto."""
@@ -138,44 +73,30 @@ def existe_codigo_empleado(codigo):
 # ==============================================================================
 # OPERACIONES: CORREOS ELECTRÓNICOS
 # ==============================================================================
-def obtener_correos_df(dict_tipo_rev, dict_est_rev):
+def obtener_correos_df():
     try:
         conn = obtener_conexion()
-        cursor = conn.cursor()
-        cols_reales = obtener_columnas_tabla(cursor, "correos_electronicos")
-        
-        col_pass_nom = next((c for c in ['contrasena', 'password', 'clave', 'pass'] if c in cols_reales), None)
-        select_pass = f", ce.{col_pass_nom} AS contrasena" if col_pass_nom else ", '' AS contrasena"
-
-        col_alias_nom = next((c for c in ['alias', 'alias_correo', 'aliases'] if c in cols_reales), None)
-        select_alias = f", ce.{col_alias_nom} AS alias" if col_alias_nom else ", '' AS alias"
-
-        col_com_nom = next((c for c in ['comentarios', 'comentario', 'observaciones', 'notas'] if c in cols_reales), None)
-        select_com = f", ce.{col_com_nom} AS comentarios" if col_com_nom else ", '' AS comentarios"
-
-        query = f"""
+        query = """
             SELECT 
                 ce.id_correo,
                 ce.codigo_empleado,
                 CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS empleado,
-                ce.direccion_correo
-                {select_pass}
-                {select_alias}
-                {select_com},
+                ce.direccion_correo,
+                COALESCE(ce.password, '') AS contrasena,
+                COALESCE(ce.alias, '') AS alias,
+                COALESCE(ce.comentarios, '') AS comentarios,
                 ce.id_tipo_correo,
-                ce.id_estatus_correo
+                tce.tipo_correo,
+                ce.id_estatus_correo,
+                ece.estatus_correo
             FROM correos_electronicos ce
+            LEFT JOIN tipos_correos_electronicos tce ON ce.id_tipo_correo = tce.id_tipo_correo
+            LEFT JOIN estatus_correos_electronicos ece ON ce.id_estatus_correo = ece.id_estatus_correo
             LEFT JOIN empleados e ON TRIM(LEADING '0' FROM CAST(ce.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
             ORDER BY e.nombre ASC, ce.id_correo DESC
         """
         df = pd.read_sql(query, conn)
         conn.close()
-        
-        if not df.empty:
-            df["tipo_correo"] = df["id_tipo_correo"].astype(int).map(dict_tipo_rev).fillna("Otro")
-            df["estatus_correo"] = df["id_estatus_correo"].astype(int).map(dict_est_rev).fillna("DESCONOCIDO")
-            df["alias"] = df["alias"].fillna("")
-            df["comentarios"] = df["comentarios"].fillna("")
         return df
     except Exception as e:
         st.error(f"⚠️ Error al consultar correos: {e}")
@@ -186,7 +107,6 @@ def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_e
         conn = obtener_conexion()
         cursor = conn.cursor()
         
-        id_correo_val = int(id_correo) if id_correo is not None else None
         codigo_emp_str = str(codigo_emp).strip()
         direccion_clean = str(direccion).strip().lower()
         pass_clean = str(pass_val).strip() if pass_val else None
@@ -195,45 +115,19 @@ def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_e
         id_tipo_val = int(id_tipo)
         id_estatus_val = int(id_estatus)
 
-        cols_reales = obtener_columnas_tabla(cursor, "correos_electronicos")
-        col_pass_nom = next((c for c in ['contrasena', 'password', 'clave', 'pass'] if c in cols_reales), None)
-        col_alias_nom = next((c for c in ['alias', 'alias_correo', 'aliases'] if c in cols_reales), None)
-        col_com_nom = next((c for c in ['comentarios', 'comentario', 'observaciones', 'notas'] if c in cols_reales), None)
-
-        if id_correo_val is not None:
-            set_clauses = ["codigo_empleado = %s", "direccion_correo = %s", "id_tipo_correo = %s", "id_estatus_correo = %s"]
-            params = [codigo_emp_str, direccion_clean, id_tipo_val, id_estatus_val]
-
-            if col_pass_nom:
-                set_clauses.append(f"{col_pass_nom} = %s")
-                params.append(pass_clean)
-            if col_alias_nom:
-                set_clauses.append(f"{col_alias_nom} = %s")
-                params.append(alias_clean)
-            if col_com_nom:
-                set_clauses.append(f"{col_com_nom} = %s")
-                params.append(com_clean)
-
-            params.append(id_correo_val)
-            query = f"UPDATE correos_electronicos SET {', '.join(set_clauses)} WHERE id_correo = %s"
-            cursor.execute(query, tuple(params))
+        if id_correo is not None:
+            query = """
+                UPDATE correos_electronicos 
+                SET codigo_empleado = %s, direccion_correo = %s, password = %s, alias = %s, comentarios = %s, id_tipo_correo = %s, id_estatus_correo = %s 
+                WHERE id_correo = %s
+            """
+            cursor.execute(query, (codigo_emp_str, direccion_clean, pass_clean, alias_clean, com_clean, id_tipo_val, id_estatus_val, int(id_correo)))
         else:
-            cols_insert = ["codigo_empleado", "direccion_correo", "id_tipo_correo", "id_estatus_correo"]
-            params = [codigo_emp_str, direccion_clean, id_tipo_val, id_estatus_val]
-
-            if col_pass_nom:
-                cols_insert.append(col_pass_nom)
-                params.append(pass_clean)
-            if col_alias_nom:
-                cols_insert.append(col_alias_nom)
-                params.append(alias_clean)
-            if col_com_nom:
-                cols_insert.append(col_com_nom)
-                params.append(com_clean)
-
-            placeholders = ", ".join(["%s"] * len(params))
-            query = f"INSERT INTO correos_electronicos ({', '.join(cols_insert)}) VALUES ({placeholders})"
-            cursor.execute(query, tuple(params))
+            query = """
+                INSERT INTO correos_electronicos (codigo_empleado, direccion_correo, password, alias, comentarios, id_tipo_correo, id_estatus_correo) 
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """
+            cursor.execute(query, (codigo_emp_str, direccion_clean, pass_clean, alias_clean, com_clean, id_tipo_val, id_estatus_val))
 
         conn.commit()
         conn.close()
@@ -245,7 +139,7 @@ def guardar_correo_bdd(id_correo, codigo_emp, direccion, pass_val, id_tipo, id_e
 # ==============================================================================
 # OPERACIONES: EMPLEADOS Y ACTUALIZACIÓN EN CASCADA
 # ==============================================================================
-def obtener_empleados_completos_df(dict_est_emp_rev):
+def obtener_empleados_completos_df():
     try:
         conn = obtener_conexion()
         query = """
@@ -258,11 +152,14 @@ def obtener_empleados_completos_df(dict_est_emp_rev):
                 e.id_sucursal, s.nombre_sucursal AS sucursal,
                 e.id_departamento, d.nombre_departamento AS departamento,
                 e.id_puesto, p.nombre_puesto AS puesto,
-                e.id_estatus_empleado
+                e.id_tipo_contrato, tce.tipo_contrato,
+                e.id_estatus_empleado, ee.estatus_empleado
             FROM empleados e
             LEFT JOIN sucursales s ON e.id_sucursal = s.id_sucursal
             LEFT JOIN departamentos d ON e.id_departamento = d.id_departamento
             LEFT JOIN puestos p ON e.id_puesto = p.id_puesto
+            LEFT JOIN tipo_contrato_empleados tce ON e.id_tipo_contrato = tce.id_tipo_contrato
+            LEFT JOIN estatus_empleados ee ON e.id_estatus_empleado = ee.id_estatus_empleado
             ORDER BY nombre_completo ASC
         """
         df = pd.read_sql(query, conn)
@@ -270,21 +167,20 @@ def obtener_empleados_completos_df(dict_est_emp_rev):
         
         if not df.empty:
             df["codigo_str"] = df["codigo"].astype(str).str.strip().str.zfill(5)
-            df["estatus_empleado"] = df["id_estatus_empleado"].astype(int).map(dict_est_emp_rev).fillna("ACTIVO")
         return df
     except Exception as e:
         st.error(f"⚠️ Error al cargar empleados: {e}")
         return pd.DataFrame()
 
-def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
+def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_contrato, id_estatus):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
         codigo_clean = str(codigo).strip().zfill(5)
 
         query = """
-            INSERT INTO empleados (codigo, nombre, apellido_paterno, apellido_materno, id_sucursal, id_departamento, id_puesto, id_estatus_empleado)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO empleados (codigo, nombre, apellido_paterno, apellido_materno, id_sucursal, id_departamento, id_puesto, id_tipo_contrato, id_estatus_empleado)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
             codigo_clean, 
@@ -293,7 +189,8 @@ def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, i
             str(ap_mat).strip() if ap_mat else None,
             int(id_suc), 
             int(id_dep), 
-            int(id_pue), 
+            int(id_pue),
+            int(id_contrato),
             int(id_estatus)
         ))
 
@@ -304,7 +201,7 @@ def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, i
         st.error(f"⚠️ Error en la base de datos al guardar empleado: {e}")
         return False
 
-def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_estatus):
+def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_pue, id_contrato, id_estatus):
     conn = obtener_conexion()
     if not conn:
         return False
@@ -319,7 +216,7 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
         query_emp = """
             UPDATE empleados
             SET codigo = %s, nombre = %s, apellido_paterno = %s, apellido_materno = %s,
-                id_sucursal = %s, id_departamento = %s, id_puesto = %s, id_estatus_empleado = %s
+                id_sucursal = %s, id_departamento = %s, id_puesto = %s, id_tipo_contrato = %s, id_estatus_empleado = %s
             WHERE TRIM(LEADING '0' FROM CAST(codigo AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
         """
         cursor.execute(query_emp, (
@@ -329,7 +226,8 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
             str(ap_mat).strip() if ap_mat else None,
             int(id_suc), 
             int(id_dep), 
-            int(id_pue), 
+            int(id_pue),
+            int(id_contrato),
             int(id_estatus), 
             c_viejo
         ))
@@ -351,19 +249,12 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
             ]
 
             for tabla, col in tablas_cascada:
-                try:
-                    cursor.execute(f"SHOW TABLES LIKE '{tabla}'")
-                    if cursor.fetchone():
-                        cols_t = obtener_columnas_tabla(cursor, tabla)
-                        if col in cols_t:
-                            q_cascade = f"""
-                                UPDATE {tabla}
-                                SET {col} = %s
-                                WHERE TRIM(LEADING '0' FROM CAST({col} AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
-                            """
-                            cursor.execute(q_cascade, (c_nuevo, c_viejo))
-                except Exception:
-                    pass
+                q_cascade = f"""
+                    UPDATE {tabla}
+                    SET {col} = %s
+                    WHERE TRIM(LEADING '0' FROM CAST({col} AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+                """
+                cursor.execute(q_cascade, (c_nuevo, c_viejo))
 
         cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
         conn.commit()
@@ -391,16 +282,10 @@ def render():
         st.success(st.session_state["mensaje_exito_correo"])
         del st.session_state["mensaje_exito_correo"]
 
-    dict_tipo_correo = obtener_catalogo_tipos_correo()
-    dict_tipo_correo_rev = {int(v): str(k) for k, v in dict_tipo_correo.items()}
-
-    dict_est_correos = obtener_catalogo_estatus_correos()
-    dict_est_correos_rev = {int(v): str(k) for k, v in dict_est_correos.items()}
-
+    dict_tipo_correo = obtener_catalogo_dict("tipos_correos_electronicos", "id_tipo_correo", "tipo_correo")
+    dict_est_correos = obtener_catalogo_dict("estatus_correos_electronicos", "id_estatus_correo", "estatus_correo")
     dict_est_emp = obtener_catalogo_dict("estatus_empleados", "id_estatus_empleado", "estatus_empleado")
-    if not dict_est_emp:
-        dict_est_emp = {"ACTIVO": 1, "INACTIVO": 2, "BAJA": 3}
-    dict_est_emp_rev = {int(v): str(k) for k, v in dict_est_emp.items()}
+    dict_contratos = obtener_catalogo_dict("tipo_contrato_empleados", "id_tipo_contrato", "tipo_contrato")
 
     tab_correos, tab_empleados = st.tabs(["📧 Gestión de Correos Electrónicos", "👤 Registro y Modificación de Empleados"])
 
@@ -410,8 +295,8 @@ def render():
     with tab_correos:
         st.subheader("✉️ Registro y Edición de Cuentas de Correo")
 
-        df_emp = obtener_empleados_completos_df(dict_est_emp_rev)
-        df_correos = obtener_correos_df(dict_tipo_correo_rev, dict_est_correos_rev)
+        df_emp = obtener_empleados_completos_df()
+        df_correos = obtener_correos_df()
 
         if df_emp.empty:
             st.warning("⚠️ No hay empleados registrados para asociar correos. Da de alta uno en la pestaña de Empleados.")
@@ -524,7 +409,6 @@ def render():
                             if not dir_limpia or "@" not in dir_limpia:
                                 st.warning("⚠️ Ingresa una dirección de correo válida.")
                             else:
-                                # Solo validar duplicados si el usuario cambió el correo original
                                 es_duplicado = False
                                 if dir_limpia != dir_correo_def.strip().lower():
                                     hay_dup, dup_id, dup_cod, dup_nom = verificar_correo_duplicado_info(dir_limpia, id_correo_edit)
@@ -589,7 +473,7 @@ def render():
     with tab_empleados:
         st.subheader("👤 Gestión de Colaboradores")
 
-        df_emp_comp = obtener_empleados_completos_df(dict_est_emp_rev)
+        df_emp_comp = obtener_empleados_completos_df()
         dict_suc = obtener_catalogo_dict("sucursales", "id_sucursal", "nombre_sucursal")
         dict_dep = obtener_catalogo_dict("departamentos", "id_departamento", "nombre_departamento")
         dict_pue = obtener_catalogo_dict("puestos", "id_puesto", "nombre_puesto")
@@ -612,6 +496,11 @@ def render():
                     suc_nom = st.selectbox("Sucursal:", list(dict_suc.keys()))
                     dep_nom = st.selectbox("Departamento:", list(dict_dep.keys()))
                     pue_nom = st.selectbox("Puesto:", list(dict_pue.keys()))
+                    
+                c4, c5 = st.columns(2)
+                with c4:
+                    contrato_nom = st.selectbox("Tipo de Contrato:", list(dict_contratos.keys()))
+                with c5:
                     est_e_nom = st.selectbox("Estatus del Empleado:", list(dict_est_emp.keys()))
 
                 btn_guardar_emp = st.form_submit_button("💾 Guardar Nuevo Colaborador", type="primary")
@@ -632,6 +521,7 @@ def render():
                             id_suc=int(dict_suc[suc_nom]),
                             id_dep=int(dict_dep[dep_nom]),
                             id_pue=int(dict_pue[pue_nom]),
+                            id_contrato=int(dict_contratos[contrato_nom]),
                             id_estatus=int(dict_est_emp[est_e_nom])
                         ):
                             st.session_state["mensaje_exito_correo"] = f"🎉 ¡Colaborador `{nom_in.strip()} {pat_in.strip()}` (Código: {cod_in.strip()}) dado de alta con éxito!"
@@ -661,6 +551,7 @@ def render():
                     suc_id_def = int(row_e["id_sucursal"]) if pd.notna(row_e["id_sucursal"]) else 1
                     dep_id_def = int(row_e["id_departamento"]) if pd.notna(row_e["id_departamento"]) else 1
                     pue_id_def = int(row_e["id_puesto"]) if pd.notna(row_e["id_puesto"]) else 1
+                    contrato_id_def = int(row_e["id_tipo_contrato"]) if pd.notna(row_e["id_tipo_contrato"]) else list(dict_contratos.values())[0]
                     est_id_def = int(row_e["id_estatus_empleado"]) if pd.notna(row_e["id_estatus_empleado"]) else 1
 
                     st.divider()
@@ -686,6 +577,11 @@ def render():
                             idx_pue = list(dict_pue.values()).index(pue_id_def) if pue_id_def in dict_pue.values() else 0
                             pue_nom = st.selectbox("Puesto:", list(dict_pue.keys()), index=idx_pue)
 
+                        c4, c5 = st.columns(2)
+                        with c4:
+                            idx_con = list(dict_contratos.values()).index(contrato_id_def) if contrato_id_def in dict_contratos.values() else 0
+                            contrato_nom = st.selectbox("Tipo de Contrato:", list(dict_contratos.keys()), index=idx_con)
+                        with c5:
                             idx_est_e = list(dict_est_emp.values()).index(est_id_def) if est_id_def in dict_est_emp.values() else 0
                             est_e_nom = st.selectbox("Estatus del Empleado:", list(dict_est_emp.keys()), index=idx_est_e)
 
@@ -708,9 +604,10 @@ def render():
                                     id_suc=int(dict_suc[suc_nom]),
                                     id_dep=int(dict_dep[dep_nom]),
                                     id_pue=int(dict_pue[pue_nom]),
+                                    id_contrato=int(dict_contratos[contrato_nom]),
                                     id_estatus=int(dict_est_emp[est_e_nom])
                                 ):
-                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Datos de `{nom_in.strip()} {pat_in.strip()}` actualizados con éxito! (Código: `{cod_in.strip().zfill(5)}` propagado en cascada a todos sus equipos y correos)."
+                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Datos de `{nom_in.strip()} {pat_in.strip()}` actualizados con éxito! (Código: `{cod_in.strip().zfill(5)}` propagado en cascada)."
                                     st.rerun()
                 else:
                     st.info("👆 Selecciona o escribe un colaborador en el buscador de arriba para cargar sus datos.")
@@ -741,7 +638,17 @@ def render():
                 ]
 
             st.dataframe(
-                df_filt_emp[["codigo_str", "nombre_completo", "sucursal", "departamento", "puesto", "estatus_empleado"]],
+                df_filt_emp[["codigo_str", "nombre_completo", "sucursal", "departamento", "puesto", "tipo_contrato", "estatus_empleado"]].rename(
+                    columns={
+                        "codigo_str": "Código",
+                        "nombre_completo": "Nombre Colaborador",
+                        "sucursal": "Sucursal",
+                        "departamento": "Departamento",
+                        "puesto": "Puesto",
+                        "tipo_contrato": "Contrato",
+                        "estatus_empleado": "Estatus"
+                    }
+                ),
                 use_container_width=True,
                 hide_index=True
             )
