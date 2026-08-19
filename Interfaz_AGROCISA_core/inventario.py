@@ -43,6 +43,18 @@ def obtener_catalogo_dict(tabla, col_id, col_nombre):
         st.error(f"⚠️ Error al cargar catálogo '{tabla}': {e}")
         return {}
 
+def obtener_lista_lineas_telefonicas():
+    """Obtiene todos los números de líneas telefónicas existentes para listas desplegables."""
+    try:
+        conn = obtener_conexion()
+        if not conn:
+            return []
+        df = pd.read_sql("SELECT numero FROM lineas_telefonicas ORDER BY numero ASC", conn)
+        conn.close()
+        return [str(num).strip() for num in df["numero"].dropna().unique() if str(num).strip() != ""]
+    except Exception:
+        return []
+
 def notificar_exito(mensaje):
     st.session_state["mensaje_exito"] = mensaje
     st.rerun()
@@ -89,31 +101,43 @@ def obtener_celulares_df():
         st.error(f"⚠️ Error Celulares: {e}")
         return pd.DataFrame()
 
+def existe_imei_celular(imei):
+    try:
+        conn = obtener_conexion()
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM inventario_celulares WHERE imei = %s", (str(imei).strip(),))
+        cnt = cursor.fetchone()[0]
+        conn.close()
+        return cnt > 0
+    except Exception:
+        return False
+
 def guardar_celular(imei, serie, mac, numero, id_modelo, id_condicion, id_cargador, id_caja, observaciones, comentarios="", id_estatus=4):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
+        num_clean = limpiar_str_null(numero)
         query = """
             INSERT INTO inventario_celulares 
             (imei, numero_serie, mac_address, numero, id_modelo, id_condicion, id_cargador, id_caja, observaciones, comentarios, id_estatus_celular) 
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(query, (
-            imei.strip(), serie.strip(), limpiar_str_null(mac), limpiar_str_null(numero), 
+            imei.strip(), limpiar_str_null(serie), limpiar_str_null(mac), num_clean, 
             id_modelo, id_condicion, id_cargador, id_caja, 
             limpiar_str_null(observaciones), limpiar_str_null(comentarios), id_estatus
         ))
         conn.commit()
         conn.close()
-        return True
+        return True, None
     except Exception as e:
-        st.error(f"⚠️ Error al guardar celular: {e}")
-        return False
+        return False, str(e)
 
 def actualizar_celular(imei_viejo, imei_nuevo, serie, mac, numero, id_modelo, id_condicion, id_cargador, id_caja, id_estatus, observaciones, comentarios=""):
     try:
         conn = obtener_conexion()
         cursor = conn.cursor()
+        num_clean = limpiar_str_null(numero)
         imei_v = str(imei_viejo).strip()
         imei_n = str(imei_nuevo).strip()
 
@@ -126,7 +150,7 @@ def actualizar_celular(imei_viejo, imei_nuevo, serie, mac, numero, id_modelo, id
             WHERE imei = %s
         """
         cursor.execute(query, (
-            imei_n, serie.strip(), limpiar_str_null(mac), limpiar_str_null(numero), id_modelo, id_condicion, 
+            imei_n, limpiar_str_null(serie), limpiar_str_null(mac), num_clean, id_modelo, id_condicion, 
             id_cargador, id_caja, id_estatus, limpiar_str_null(observaciones), limpiar_str_null(comentarios), imei_v
         ))
 
@@ -136,10 +160,9 @@ def actualizar_celular(imei_viejo, imei_nuevo, serie, mac, numero, id_modelo, id
         cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
         conn.commit()
         conn.close()
-        return True
+        return True, None
     except Exception as e:
-        st.error(f"⚠️ Error al actualizar celular: {e}")
-        return False
+        return False, str(e)
 
 # ==============================================================================
 # 2. LAPTOPS
@@ -638,6 +661,7 @@ def render():
     dict_cajas = obtener_catalogo_dict("caja", "id_caja", "caja_opcion")
     dict_hdd_tipos = obtener_catalogo_dict("hdd_tipo", "id_hdd_tipo", "hdd_opcion")
     dict_renovaciones = obtener_catalogo_dict("renovacion", "id_renovacion", "renovacion_opcion")
+    lista_lineas_disponibles = obtener_lista_lineas_telefonicas()
 
     tab_cel, tab_lap, tab_cpu, tab_mon, tab_tab, tab_red = st.tabs([
         "📱 Celulares", "💻 Laptops", "🖥️ CPUs", "🖥️ Monitores", "📱 Tablets", "🌐 Dispositivos de Red"
@@ -673,19 +697,46 @@ def render():
         with t2:
             with st.form("form_add_cel"):
                 c1, c2 = st.columns(2)
-                imei = c1.text_input("IMEI*:")
-                serie = c1.text_input("Número de Serie*:")
-                mac = c1.text_input("MAC Wi-Fi:")
-                numero = c1.text_input("Línea Asignada:")
+                imei = c1.text_input("IMEI*:", placeholder="Ej. 863736063211028")
+                serie = c1.text_input("Número de Serie (Opcional):", placeholder="Ej. 5RK0123456")
+                mac = c1.text_input("MAC Wi-Fi (Opcional):", placeholder="Ej. 08:BF:B8:A6:F0:B6")
+                
+                # Desplegable de líneas telefónicas
+                opciones_lineas_add = ["-- Sin Línea (Sin Asignar) --"] + lista_lineas_disponibles
+                num_linea_sel = c1.selectbox("Línea Telefónica Asignada:", opciones_lineas_add, index=0)
+
                 mod_sel = c2.selectbox("Modelo:", list(dict_mod.keys()))
                 cond_sel = c2.selectbox("Condición:", list(dict_condiciones.keys()))
                 carg_sel = c2.selectbox("Cargador:", list(dict_cargadores.keys()))
                 caj_sel = c2.selectbox("Caja:", list(dict_cajas.keys()))
-                obs = st.text_area("Observaciones (Diagnóstico/Baja):")
-                com = st.text_area("Comentarios (Estatus físico - va al Word):")
+                obs = st.text_area("Observaciones (Diagnóstico/Baja):", placeholder="Ej. Teléfono de renovación anterior")
+                com = st.text_area("Comentarios (Estatus físico - va al Word):", placeholder="Ej. Estética 9/10, sin rayones")
+
                 if st.form_submit_button("💾 Guardar Celular", type="primary"):
-                    if imei and serie and guardar_celular(imei, serie, mac, numero, dict_mod[mod_sel], dict_condiciones[cond_sel], dict_cargadores[carg_sel], dict_cajas[caj_sel], obs, com):
-                        notificar_exito(f"¡Celular IMEI {imei} dado de alta con éxito!")
+                    val_imei = imei.strip()
+                    if not val_imei:
+                        st.warning("⚠️ El campo IMEI es obligatorio.")
+                    elif existe_imei_celular(val_imei):
+                        st.error(f"⛔ El IMEI `{val_imei}` ya existe en el inventario.")
+                    else:
+                        num_final = None if num_linea_sel == "-- Sin Línea (Sin Asignar) --" else num_linea_sel
+                        ok, err_msg = guardar_celular(
+                            imei=val_imei,
+                            serie=serie,
+                            mac=mac,
+                            numero=num_final,
+                            id_modelo=dict_mod[mod_sel],
+                            id_condicion=dict_condiciones[cond_sel],
+                            id_cargador=dict_cargadores[carg_sel],
+                            id_caja=dict_cajas[caj_sel],
+                            observaciones=obs,
+                            comentarios=com
+                        )
+                        if ok:
+                            notificar_exito(f"¡Celular IMEI {val_imei} dado de alta con éxito!")
+                        else:
+                            st.error(f"⛔ Error al guardar en base de datos: {err_msg}")
+
         with t3:
             if not df_cel.empty:
                 opts_cel_ed = [
@@ -711,7 +762,19 @@ def render():
                         e_imei_edit = c1.text_input("IMEI (Identificador):", value=str(r["imei"]))
                         e_ser = c1.text_input("Número de Serie:", value=limpiar_str_null(r["numero_serie"]) or "")
                         e_mac = c1.text_input("MAC Wi-Fi:", value=limpiar_str_null(r["mac_address"]) or "")
-                        e_num = c1.text_input("Línea:", value=limpiar_str_null(r["numero_linea"]) or "")
+
+                        # Desplegable de líneas en edición
+                        num_actual = limpiar_str_null(r["numero_linea"])
+                        opciones_lineas_edit = ["-- Sin Línea (Sin Asignar) --"] + lista_lineas_disponibles
+                        idx_linea_def = 0
+                        if num_actual and num_actual in opciones_lineas_edit:
+                            idx_linea_def = opciones_lineas_edit.index(num_actual)
+                        elif num_actual:
+                            opciones_lineas_edit.append(num_actual)
+                            idx_linea_def = len(opciones_lineas_edit) - 1
+
+                        e_num_sel = c1.selectbox("Línea Asignada:", opciones_lineas_edit, index=idx_linea_def)
+
                         e_est = c1.selectbox("Estatus:", list(dict_est.keys()), index=list(dict_est.keys()).index(r["estatus"]) if r["estatus"] in dict_est else 0)
                         e_mod = c2.selectbox("Modelo:", list(dict_mod.keys()), index=list(dict_mod.values()).index(r["id_modelo"]) if r["id_modelo"] in dict_mod.values() else 0)
                         e_cond = c2.selectbox("Condición:", list(dict_condiciones.keys()), index=list(dict_condiciones.values()).index(r["id_condicion"]) if r["id_condicion"] in dict_condiciones.values() else 0)
@@ -721,8 +784,29 @@ def render():
                         e_obs = st.text_area("Observaciones (Diagnóstico/Baja):", value=limpiar_str_null(r["observaciones"]) or "")
                         e_com = st.text_area("Comentarios (Estatus físico - va al Word):", value=limpiar_str_null(r["comentarios"]) or "")
                         if st.form_submit_button("💾 Actualizar Celular", type="primary"):
-                            if actualizar_celular(imei_ed, e_imei_edit, e_ser, e_mac, e_num, dict_mod[e_mod], dict_condiciones[e_cond], dict_cargadores[e_carg], dict_cajas[e_caj], dict_est[e_est], e_obs, e_com):
-                                notificar_exito(f"¡Celular IMEI {e_imei_edit} actualizado correctamente!")
+                            val_imei_edit = e_imei_edit.strip()
+                            if not val_imei_edit:
+                                st.warning("⚠️ El IMEI no puede quedar vacío.")
+                            else:
+                                num_final_edit = None if e_num_sel == "-- Sin Línea (Sin Asignar) --" else e_num_sel
+                                ok, err_up = actualizar_celular(
+                                    imei_viejo=imei_ed,
+                                    imei_nuevo=val_imei_edit,
+                                    serie=e_ser,
+                                    mac=e_mac,
+                                    numero=num_final_edit,
+                                    id_modelo=dict_mod[e_mod],
+                                    id_condicion=dict_condiciones[e_cond],
+                                    id_cargador=dict_cargadores[e_carg],
+                                    id_caja=dict_cajas[e_caj],
+                                    id_estatus=dict_est[e_est],
+                                    observaciones=e_obs,
+                                    comentarios=e_com
+                                )
+                                if ok:
+                                    notificar_exito(f"¡Celular IMEI {val_imei_edit} actualizado correctamente!")
+                                else:
+                                    st.error(f"⛔ Error al actualizar: {err_up}")
 
     # --------------------------------------------------------------------------
     # 2. LAPTOPS

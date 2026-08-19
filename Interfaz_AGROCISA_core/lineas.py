@@ -48,7 +48,6 @@ def obtener_catalogo_estatus_lineas():
         st.error(f"⚠️ Error al consultar catálogo 'estatus_linea_telefonica': {e}")
         return {}
 
-
 # ==============================================================================
 # OPERACIONES BDD: LÍNEAS TELEFÓNICAS
 # ==============================================================================
@@ -221,12 +220,18 @@ def render():
                 opts_est = ["Todos"] + sorted(list(df_lineas["estatus_linea"].dropna().unique()))
                 est_sel = st.selectbox("Filtrar por Estatus de Línea:", opts_est, key="filtro_est_lineas_v3")
 
-            c_busq, c_suc = st.columns([2, 1])
+            c_busq, f1, f2, f3 = st.columns([1.5, 1, 1, 1])
             with c_busq:
-                txt_busq = st.text_input("Búsqueda libre:", placeholder="Ej. Juan, 3931234567, SIN ASIGNAR, Morelia...", key="txt_busq_lineas_v3")
-            with c_suc:
+                txt_busq = st.text_input("Búsqueda libre:", placeholder="Ej. Juan, 3931234567...", key="txt_busq_lineas_v3")
+            with f1:
                 opts_suc = ["Todas"] + sorted(list(df_lineas["sucursal"].dropna().unique()))
-                suc_sel = st.selectbox("Filtrar por Sucursal:", opts_suc, key="suc_f_lineas_v3")
+                suc_sel = st.selectbox("Sucursal:", opts_suc, key="suc_f_lineas_v3")
+            with f2:
+                opts_dep = ["Todos"] + sorted(list(df_lineas["departamento"].dropna().unique()))
+                dep_sel = st.selectbox("Departamento:", opts_dep, key="dep_f_lineas_v3")
+            with f3:
+                opts_pue = ["Todos"] + sorted(list(df_lineas["puesto"].dropna().unique()))
+                pue_sel = st.selectbox("Puesto:", opts_pue, key="pue_f_lineas_v3")
 
             df_filt = df_lineas.copy()
 
@@ -236,9 +241,12 @@ def render():
             else:
                 if est_sel != "Todos":
                     df_filt = df_filt[df_filt["estatus_linea"] == est_sel]
-
                 if suc_sel != "Todas":
                     df_filt = df_filt[df_filt["sucursal"] == suc_sel]
+                if dep_sel != "Todos":
+                    df_filt = df_filt[df_filt["departamento"] == dep_sel]
+                if pue_sel != "Todos":
+                    df_filt = df_filt[df_filt["puesto"] == pue_sel]
 
                 if txt_busq.strip():
                     term = txt_busq.strip().lower()
@@ -248,7 +256,7 @@ def render():
                         mascara |= df_filt[col].astype(str).str.lower().str.contains(term, na=False)
                     df_filt = df_filt[mascara]
 
-            cols_view = ["numero", "plan", "gb", "mpp_disp", "knox_disp", "estatus_linea", "titular", "sucursal", "comentarios"]
+            cols_view = ["numero", "plan", "gb", "mpp_disp", "knox_disp", "estatus_linea", "titular", "sucursal", "departamento", "puesto", "comentarios"]
             st.dataframe(
                 df_filt[cols_view].rename(columns={
                     "numero": "Número",
@@ -259,6 +267,8 @@ def render():
                     "estatus_linea": "Estatus",
                     "titular": "Titular Asignado",
                     "sucursal": "Sucursal",
+                    "departamento": "Departamento",
+                    "puesto": "Puesto",
                     "comentarios": "Comentarios"
                 }),
                 use_container_width=True,
