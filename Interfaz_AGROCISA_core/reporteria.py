@@ -70,48 +70,59 @@ def obtener_kpis_inventario():
         return 0, 0, 0, 0, pd.DataFrame()
 
 def obtener_equipos_por_colaborador(codigo_empleado):
+    conn = obtener_conexion()
+    if not conn:
+        return pd.DataFrame()
+
+    cod_clean = str(codigo_empleado).strip().lstrip('0')
     try:
-        conn = obtener_conexion()
-        cod_clean = str(codigo_empleado).strip().lstrip('0')
-        query = """
-            SELECT '📱 Celular' AS Tipo, CONCAT(COALESCE(m.marca_modelo, 'Celular'), ' (IMEI: ', ic.imei, ')') AS Equipo, COALESCE(ic.numero, 'Sin Línea') AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
+        q_cel = """
+            SELECT '📱 Celular' AS Tipo, CONCAT(COALESCE(m.marca_modelo, 'Celular'), ' (IMEI: ', ic.imei, ')') AS Equipo, 
+                   COALESCE(ic.numero, 'Sin Línea') AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_celulares ic
             LEFT JOIN modelos_celulares m ON ic.id_modelo = m.id_modelo
             LEFT JOIN condicion c ON ic.id_condicion = c.id_condicion
             WHERE TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = %s
-
-            UNION ALL
-
-            SELECT '💻 Laptop' AS Tipo, CONCAT(COALESCE(il.marca, ''), ' ', COALESCE(il.modelo, ''), ' [', COALESCE(il.hostname, ''), ']') AS Equipo, il.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
+        """
+        q_lap = """
+            SELECT '💻 Laptop' AS Tipo, CONCAT(COALESCE(il.marca, ''), ' ', COALESCE(il.modelo, ''), ' [', COALESCE(il.hostname, ''), ']') AS Equipo, 
+                   il.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_laptops il
             LEFT JOIN condicion c ON il.id_condicion = c.id_condicion
             WHERE TRIM(LEADING '0' FROM CAST(il.codigo_empleado AS CHAR)) = %s
-
-            UNION ALL
-
-            SELECT '🖥️ CPU' AS Tipo, CONCAT('CPU ', COALESCE(icp.marca, ''), ' ', COALESCE(icp.modelo, ''), ' [', COALESCE(icp.hostname, ''), ']') AS Equipo, COALESCE(icp.numero_serie, icp.hostname) AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
+        """
+        q_cpu = """
+            SELECT '🖥️ CPU' AS Tipo, CONCAT('CPU ', COALESCE(icp.marca, ''), ' ', COALESCE(icp.modelo, ''), ' [', COALESCE(icp.hostname, ''), ']') AS Equipo, 
+                   COALESCE(icp.numero_serie, icp.hostname) AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_cpu icp
             LEFT JOIN condicion c ON icp.id_condicion = c.id_condicion
             WHERE TRIM(LEADING '0' FROM CAST(icp.codigo_empleado AS CHAR)) = %s
-
-            UNION ALL
-
-            SELECT '🖥️ Monitor' AS Tipo, CONCAT('Monitor ', COALESCE(im.marca, ''), ' ', COALESCE(im.modelo, '')) AS Equipo, im.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
+        """
+        q_mon = """
+            SELECT '🖥️ Monitor' AS Tipo, CONCAT('Monitor ', COALESCE(im.marca, ''), ' ', COALESCE(im.modelo, '')) AS Equipo, 
+                   im.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_monitores im
             LEFT JOIN condicion c ON im.id_condicion = c.id_condicion
             WHERE TRIM(LEADING '0' FROM CAST(im.codigo_empleado AS CHAR)) = %s
-
-            UNION ALL
-
-            SELECT '📱 Tablet' AS Tipo, CONCAT('Tablet ', COALESCE(it.marca, ''), ' ', COALESCE(it.modelo, '')) AS Equipo, it.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
+        """
+        q_tab = """
+            SELECT '📱 Tablet' AS Tipo, CONCAT('Tablet ', COALESCE(it.marca, ''), ' ', COALESCE(it.modelo, '')) AS Equipo, 
+                   it.numero_serie AS Identificador_Serie, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion
             FROM inventario_tablets it
             LEFT JOIN condicion c ON it.id_condicion = c.id_condicion
             WHERE TRIM(LEADING '0' FROM CAST(it.codigo_empleado AS CHAR)) = %s
         """
-        df = pd.read_sql(query, conn, params=(cod_clean, cod_clean, cod_clean, cod_clean, cod_clean))
+
+        dfs = []
+        for q in [q_cel, q_lap, q_cpu, q_mon, q_tab]:
+            df_part = pd.read_sql(q, conn, params=(cod_clean,))
+            if not df_part.empty:
+                dfs.append(df_part)
+
         conn.close()
-        return df
+        return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
     except Exception as e:
+        conn.close()
         st.error(f"⚠️ Error al consultar equipos del empleado: {e}")
         return pd.DataFrame()
 
@@ -147,47 +158,64 @@ def obtener_reporte_lineas_df():
         return pd.DataFrame()
 
 def obtener_dispositivos_disponibles_df():
+    """Consulta modular de stock disponible sin UNION SQL para prevenir errores de colación."""
+    conn = obtener_conexion()
+    if not conn:
+        return pd.DataFrame()
+
     try:
-        conn = obtener_conexion()
-        query = """
-            SELECT '📱 Celular' AS Categoria, COALESCE(m.marca_modelo, 'Celular') AS Descripcion, ic.imei AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(ic.observaciones, '') AS Observaciones
+        q_cel = """
+            SELECT '📱 Celular' AS Categoria, COALESCE(m.marca_modelo, 'Celular') AS Descripcion, 
+                   ic.imei AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, 
+                   COALESCE(ic.observaciones, '') AS Observaciones
             FROM inventario_celulares ic
             LEFT JOIN modelos_celulares m ON ic.id_modelo = m.id_modelo
             LEFT JOIN condicion c ON ic.id_condicion = c.id_condicion
             WHERE ic.id_estatus_celular = 4
-
-            UNION ALL
-
-            SELECT '💻 Laptop' AS Categoria, CONCAT(COALESCE(il.marca, ''), ' ', COALESCE(il.modelo, ''), ' [', COALESCE(il.hostname, ''), ']') AS Descripcion, il.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(il.observaciones, '') AS Observaciones
+        """
+        q_lap = """
+            SELECT '💻 Laptop' AS Categoria, CONCAT(COALESCE(il.marca, ''), ' ', COALESCE(il.modelo, ''), ' [', COALESCE(il.hostname, ''), ']') AS Descripcion, 
+                   il.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, 
+                   COALESCE(il.observaciones, '') AS Observaciones
             FROM inventario_laptops il
             LEFT JOIN condicion c ON il.id_condicion = c.id_condicion
             WHERE il.id_estatus_laptops = 4
-
-            UNION ALL
-
-            SELECT '🖥️ CPU' AS Categoria, CONCAT('CPU ', COALESCE(icp.marca, ''), ' ', COALESCE(icp.modelo, ''), ' [', COALESCE(icp.hostname, ''), ']') AS Descripcion, COALESCE(icp.hostname, CAST(icp.id_cpu AS CHAR)) AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(icp.observaciones, '') AS Observaciones
+        """
+        q_cpu = """
+            SELECT '🖥️ CPU' AS Categoria, CONCAT('CPU ', COALESCE(icp.marca, ''), ' ', COALESCE(icp.modelo, ''), ' [', COALESCE(icp.hostname, ''), ']') AS Descripcion, 
+                   COALESCE(icp.hostname, CAST(icp.id_cpu AS CHAR)) AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, 
+                   COALESCE(icp.observaciones, '') AS Observaciones
             FROM inventario_cpu icp
             LEFT JOIN condicion c ON icp.id_condicion = c.id_condicion
             WHERE icp.id_estatus_cpu = 4
-
-            UNION ALL
-
-            SELECT '🖥️ Monitor' AS Categoria, CONCAT('Monitor ', COALESCE(im.marca, ''), ' ', COALESCE(im.modelo, '')) AS Descripcion, im.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(im.observaciones, '') AS Observaciones
+        """
+        q_mon = """
+            SELECT '🖥️ Monitor' AS Categoria, CONCAT('Monitor ', COALESCE(im.marca, ''), ' ', COALESCE(im.modelo, '')) AS Descripcion, 
+                   im.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, 
+                   COALESCE(im.observaciones, '') AS Observaciones
             FROM inventario_monitores im
             LEFT JOIN condicion c ON im.id_condicion = c.id_condicion
             WHERE im.id_estatus_monitor = 4
-
-            UNION ALL
-
-            SELECT '📱 Tablet' AS Categoria, CONCAT('Tablet ', COALESCE(it.marca, ''), ' ', COALESCE(it.modelo, '')) AS Descripcion, it.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, COALESCE(it.observaciones, '') AS Observaciones
+        """
+        q_tab = """
+            SELECT '📱 Tablet' AS Categoria, CONCAT('Tablet ', COALESCE(it.marca, ''), ' ', COALESCE(it.modelo, '')) AS Descripcion, 
+                   it.numero_serie AS `Serie / Identificador`, COALESCE(c.condicion_opcion, 'Buenas condiciones') AS Condicion, 
+                   COALESCE(it.observaciones, '') AS Observaciones
             FROM inventario_tablets it
             LEFT JOIN condicion c ON it.id_condicion = c.id_condicion
             WHERE it.id_estatus_tablet = 4
         """
-        df = pd.read_sql(query, conn)
+
+        dfs = []
+        for q in [q_cel, q_lap, q_cpu, q_mon, q_tab]:
+            df_p = pd.read_sql(q, conn)
+            if not df_p.empty:
+                dfs.append(df_p)
+
         conn.close()
-        return df
+        return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
     except Exception as e:
+        conn.close()
         st.error(f"⚠️ Error al obtener disponibles: {e}")
         return pd.DataFrame()
 
@@ -351,7 +379,7 @@ def render():
         df_disp = obtener_dispositivos_disponibles_df()
 
         if not df_disp.empty:
-            cats = ["Todas"] + list(df_disp["Categoria"].unique())
+            cats = ["Todas"] + sorted(list(df_disp["Categoria"].unique()))
             cat_sel = st.selectbox("Filtrar por Categoría:", cats)
 
             df_filtrado = df_disp if cat_sel == "Todas" else df_disp[df_disp["Categoria"] == cat_sel]
