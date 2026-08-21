@@ -1,3 +1,4 @@
+import io
 import streamlit as st
 import pandas as pd
 from database import obtener_conexion
@@ -12,6 +13,13 @@ def aplicar_estilos_pantalla():
             }
         </style>
     """, unsafe_allow_html=True)
+
+def generar_excel_bytes(df_exportar, nombre_hoja="Empleados"):
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        df_exportar.to_excel(writer, index=False, sheet_name=nombre_hoja)
+    buffer.seek(0)
+    return buffer
 
 def obtener_catalogo_dict(tabla, col_id, col_nombre):
     """Consulta catálogos directos sin diccionarios inventados."""
@@ -184,9 +192,9 @@ def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, i
         """
         cursor.execute(query, (
             codigo_clean, 
-            str(nombre).strip(), 
-            str(ap_pat).strip(), 
-            str(ap_mat).strip() if ap_mat else None,
+            str(nombre).strip().upper(), 
+            str(ap_pat).strip().upper(), 
+            str(ap_mat).strip().upper() if ap_mat else None,
             int(id_suc), 
             int(id_dep), 
             int(id_pue),
@@ -221,9 +229,9 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
         """
         cursor.execute(query_emp, (
             c_nuevo, 
-            str(nombre).strip(), 
-            str(ap_pat).strip(), 
-            str(ap_mat).strip() if ap_mat else None,
+            str(nombre).strip().upper(), 
+            str(ap_pat).strip().upper(), 
+            str(ap_mat).strip().upper() if ap_mat else None,
             int(id_suc), 
             int(id_dep), 
             int(id_pue),
@@ -524,7 +532,7 @@ def render():
                             id_contrato=int(dict_contratos[contrato_nom]),
                             id_estatus=int(dict_est_emp[est_e_nom])
                         ):
-                            st.session_state["mensaje_exito_correo"] = f"🎉 ¡Colaborador `{nom_in.strip()} {pat_in.strip()}` (Código: {cod_in.strip()}) dado de alta con éxito!"
+                            st.session_state["mensaje_exito_correo"] = f"🎉 ¡Colaborador `{nom_in.strip().upper()} {pat_in.strip().upper()}` (Código: {cod_in.strip().zfill(5)}) dado de alta con éxito!"
                             st.rerun()
 
         else:
@@ -607,51 +615,82 @@ def render():
                                     id_contrato=int(dict_contratos[contrato_nom]),
                                     id_estatus=int(dict_est_emp[est_e_nom])
                                 ):
-                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Datos de `{nom_in.strip()} {pat_in.strip()}` actualizados con éxito! (Código: `{cod_in.strip().zfill(5)}` propagado en cascada)."
+                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Datos de `{nom_in.strip().upper()} {pat_in.strip().upper()}` actualizados con éxito! (Código: `{cod_in.strip().zfill(5)}` propagado en cascada)."
                                     st.rerun()
                 else:
                     st.info("👆 Selecciona o escribe un colaborador en el buscador de arriba para cargar sus datos.")
 
+        # ----------------------------------------------------------------------
+        # DIRECTORIO GENERAL DE EMPLEADOS CON FILTROS AVANZADOS 4x1
+        # ----------------------------------------------------------------------
         st.divider()
-        st.markdown("### 📋 Directorio General de Empleados")
-        
+        st.subheader("📋 Directorio General de Empleados")
+
         if not df_emp_comp.empty:
-            f1, f2 = st.columns(2)
-            with f1:
-                txt_busq_emp = st.text_input("🔍 Buscar por Nombre, Código o Sucursal:", placeholder="Ej. Morelia, 00848, Abdiel")
-            with f2:
-                opts_est_emp = ["Todos"] + list(dict_est_emp.keys())
-                sel_est_emp = st.selectbox("Filtrar por Estatus de Empleado:", opts_est_emp)
+            c_busq, f_suc, f_dep, f_pue, f_est = st.columns([1.5, 1, 1, 1, 1])
+
+            with c_busq:
+                txt_busq_emp = st.text_input("🔍 Buscar:", placeholder="Ej. Morelia, 00848, Abdiel...", key="filtro_txt_emp")
+            with f_suc:
+                opts_s = ["Todas"] + sorted(list(df_emp_comp["sucursal"].dropna().unique()))
+                sel_s = st.selectbox("Sucursal:", opts_s, key="filtro_suc_emp")
+            with f_dep:
+                opts_d = ["Todos"] + sorted(list(df_emp_comp["departamento"].dropna().unique()))
+                sel_d = st.selectbox("Departamento:", opts_d, key="filtro_dep_emp")
+            with f_pue:
+                opts_p = ["Todos"] + sorted(list(df_emp_comp["puesto"].dropna().unique()))
+                sel_p = st.selectbox("Puesto:", opts_p, key="filtro_pue_emp")
+            with f_est:
+                opts_e = ["Todos"] + sorted(list(df_emp_comp["estatus_empleado"].dropna().unique()))
+                sel_e = st.selectbox("Estatus:", opts_e, key="filtro_est_emp")
 
             df_filt_emp = df_emp_comp.copy()
-            if sel_est_emp != "Todos":
-                df_filt_emp = df_filt_emp[df_filt_emp["estatus_empleado"] == sel_est_emp]
+
+            if sel_s != "Todas":
+                df_filt_emp = df_filt_emp[df_filt_emp["sucursal"] == sel_s]
+            if sel_d != "Todos":
+                df_filt_emp = df_filt_emp[df_filt_emp["departamento"] == sel_d]
+            if sel_p != "Todos":
+                df_filt_emp = df_filt_emp[df_filt_emp["puesto"] == sel_p]
+            if sel_e != "Todos":
+                df_filt_emp = df_filt_emp[df_filt_emp["estatus_empleado"] == sel_e]
 
             if txt_busq_emp.strip():
                 term_e = txt_busq_emp.strip().lower()
-                df_filt_emp = df_filt_emp[
-                    df_filt_emp["nombre_completo"].astype(str).str.lower().str.contains(term_e) |
-                    df_filt_emp["codigo_str"].astype(str).str.lower().str.contains(term_e) |
-                    df_filt_emp["sucursal"].astype(str).str.lower().str.contains(term_e) |
-                    df_filt_emp["departamento"].astype(str).str.lower().str.contains(term_e) |
-                    df_filt_emp["puesto"].astype(str).str.lower().str.contains(term_e)
-                ]
+                cols_eval = ["codigo_str", "nombre_completo", "sucursal", "departamento", "puesto", "tipo_contrato", "estatus_empleado"]
+                mascara_emp = pd.Series(False, index=df_filt_emp.index)
+                for col in cols_eval:
+                    mascara_emp |= df_filt_emp[col].astype(str).str.lower().str.contains(term_e, na=False)
+                df_filt_emp = df_filt_emp[mascara_emp]
 
+            v_cols_emp = ["codigo_str", "nombre_completo", "sucursal", "departamento", "puesto", "tipo_contrato", "estatus_empleado"]
             st.dataframe(
-                df_filt_emp[["codigo_str", "nombre_completo", "sucursal", "departamento", "puesto", "tipo_contrato", "estatus_empleado"]].rename(
-                    columns={
-                        "codigo_str": "Código",
-                        "nombre_completo": "Nombre Colaborador",
-                        "sucursal": "Sucursal",
-                        "departamento": "Departamento",
-                        "puesto": "Puesto",
-                        "tipo_contrato": "Contrato",
-                        "estatus_empleado": "Estatus"
-                    }
-                ),
+                df_filt_emp[v_cols_emp].rename(columns={
+                    "codigo_str": "Código",
+                    "nombre_completo": "Nombre Colaborador",
+                    "sucursal": "Sucursal",
+                    "departamento": "Departamento",
+                    "puesto": "Puesto",
+                    "tipo_contrato": "Contrato",
+                    "estatus_empleado": "Estatus"
+                }),
                 use_container_width=True,
                 hide_index=True
             )
-            st.caption(f"Mostrando **{len(df_filt_emp)}** de **{len(df_emp_comp)}** colaboradores.")
+
+            col_inf_e, col_btn_e = st.columns([3, 1])
+            with col_inf_e:
+                st.caption(f"Mostrando **{len(df_filt_emp)}** de **{len(df_emp_comp)}** colaboradores.")
+            with col_btn_e:
+                st.download_button(
+                    label="📊 Exportar Empleados (.xlsx)",
+                    data=generar_excel_bytes(df_filt_emp[v_cols_emp], "Directorio_Empleados"),
+                    file_name="Directorio_Empleados_AGROCISA.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    type="primary",
+                    use_container_width=True
+                )
+        else:
+            st.info("No hay colaboradores registrados en la base de datos.")
 
 render_correos = render
