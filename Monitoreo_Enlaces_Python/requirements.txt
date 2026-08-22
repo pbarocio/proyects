@@ -1,0 +1,3 @@
+netmiko
+pyTelegramBotAPI
+python-dotenv
