@@ -44,6 +44,48 @@ def obtener_catalogo_dict(tabla, col_id, col_nombre):
     except Exception:
         return {}
 
+def procesar_baja_empleado_bdd(codigo_empleado):
+    """Marca formalmente al empleado como inactivo/baja en MariaDB y libera sus recursos."""
+    conn = database.obtener_conexion()
+    if not conn:
+        return False, "Sin conexión con la base local."
+    
+    cursor = conn.cursor()
+    cod_clean = str(codigo_empleado).strip()
+    try:
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+        
+        # 1. Cambiar estatus de empleado a 2 (INACTIVO / BAJA)
+        cursor.execute("""
+            UPDATE empleados 
+            SET id_estatus_empleado = 2 
+            WHERE TRIM(LEADING '0' FROM CAST(codigo AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+        """, (cod_clean,))
+
+        # 2. Liberar líneas telefónicas asociadas
+        cursor.execute("""
+            UPDATE lineas_telefonicas 
+            SET codigo_empleado = NULL, id_estatus_linea = 4 
+            WHERE TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+        """, (cod_clean,))
+
+        # 3. Cerrar responsivas activas
+        for t_resp in ["responsivas_celulares", "responsivas_laptops", "responsivas_cpu", "responsivas_monitores", "responsivas_tablets"]:
+            cursor.execute(f"""
+                UPDATE {t_resp} 
+                SET id_status = 2 
+                WHERE TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+            """, (cod_clean,))
+
+        cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
+        conn.commit()
+        return True, None
+    except Exception as e:
+        conn.rollback()
+        return False, str(e)
+    finally:
+        conn.close()
+
 # ==============================================================================
 # OBTENCIÓN DE DATOS USANDO EL TÚNEL SSH DE DATABASE.PY
 # ==============================================================================
@@ -68,7 +110,7 @@ def obtener_datos_vps():
         return pd.DataFrame(), f"Error al ejecutar obtener_empleados_vps_df(): {e}"
 
 def obtener_datos_local():
-    """Consulta empleados locales directamente desde agrocisa_core."""
+    """Consulta empleados activos locales directamente desde MariaDB."""
     try:
         conn = database.obtener_conexion()
         query = """
@@ -146,17 +188,29 @@ def ejecutar_diagnostico_completo():
     loc_reales_discrepantes = loc_sin_vps_id.drop(index=idx_loc_homologados)
     altas_reales = vps_sin_loc_id.drop(index=idx_vps_homologados)
 
+    # 1. Externos protegidos
     es_externo = loc_reales_discrepantes["puesto"].astype(str).str.lower().str.contains("externo|asesor|proveedor|contratista") | \
                  loc_reales_discrepantes["sucursal"].astype(str).str.lower().str.contains("externo|corporativo externo") | \
                  (loc_reales_discrepantes["id_tipo_contrato"] == 2)
+    externos_protegidos = loc_reales_discrepantes[es_externo].copy()
 
-    externos_protegidos = loc_reales_discrepantes[es_externo]
-    bajas_reales = loc_reales_discrepantes[~es_externo]
+    resto_loc = loc_reales_discrepantes[~es_externo].copy()
+
+    # 2. Identificación de Altas Provisionales (Códigos manuales o temporales)
+    codigos_provisionales = st.session_state.get("codigos_provisionales_protegidos", set())
+    
+    es_provisional = resto_loc["codigo_disp"].apply(
+        lambda c: c in codigos_provisionales or str(c).startswith("123") or len(str(c).lstrip("0")) >= 5 or int(c) > 9000 if str(c).isdigit() else True
+    )
+
+    altas_provisionales = resto_loc[es_provisional].copy()
+    bajas_reales = resto_loc[~es_provisional].copy()
 
     return {
         "total_vps": len(df_vps),
         "total_local": len(df_loc),
         "homologaciones": homologaciones,
+        "altas_provisionales": altas_provisionales,
         "bajas_reales": bajas_reales,
         "externos_protegidos": externos_protegidos,
         "altas_detectadas": altas_reales
@@ -244,8 +298,8 @@ def guardar_alta_individual(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_p
                 id_tipo_contrato = VALUES(id_tipo_contrato), id_estatus_empleado = VALUES(id_estatus_empleado)
         """
         cursor.execute(q, (
-            str(codigo).strip().zfill(5), str(nombre).strip(), str(ap_pat).strip(),
-            str(ap_mat).strip() if ap_mat else None, int(id_suc), int(id_dep), int(id_pue), int(id_contrato), int(id_estatus)
+            str(codigo).strip().zfill(5), str(nombre).strip().title(), str(ap_pat).strip().title(),
+            str(ap_mat).strip().title() if ap_mat else None, int(id_suc), int(id_dep), int(id_pue), int(id_contrato), int(id_estatus)
         ))
 
         conn.commit()
@@ -261,6 +315,9 @@ def guardar_alta_individual(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, id_p
 # ==============================================================================
 def render():
     aplicar_estilos_pantalla()
+
+    if "codigos_provisionales_protegidos" not in st.session_state:
+        st.session_state["codigos_provisionales_protegidos"] = set()
 
     if "mensaje_exito_sync" in st.session_state:
         st.success(st.session_state["mensaje_exito_sync"])
@@ -285,22 +342,25 @@ def render():
     if "diag_data" in st.session_state and st.session_state["diag_data"]:
         data = st.session_state["diag_data"]
         homologaciones = data.get("homologaciones", [])
+        altas_provisionales = data.get("altas_provisionales", pd.DataFrame())
         bajas_reales = data["bajas_reales"]
         externos_protegidos = data["externos_protegidos"]
         altas_detectadas = data["altas_detectadas"]
 
         st.divider()
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("🔄 A Homologar (Nombre)", f"{len(homologaciones)} detectados")
-        c2.metric("🚨 Bajas Reales", f"{len(bajas_reales)} empleados")
-        c3.metric("🛡️ Externos Protegidos", f"{len(externos_protegidos)} empleados")
-        c4.metric("✨ Altas Detectadas", f"{len(altas_detectadas)} empleados")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("🔄 A Homologar", f"{len(homologaciones)} detectados")
+        c2.metric("⏳ Altas Locales", f"{len(altas_provisionales)} en espera")
+        c3.metric("🚨 Bajas Reales", f"{len(bajas_reales)} empleados")
+        c4.metric("🛡️ Externos", f"{len(externos_protegidos)} protegidos")
+        c5.metric("✨ Altas VPS", f"{len(altas_detectadas)} detectadas")
 
         st.divider()
 
-        tab_homologar, tab_bajas, tab_ext, tab_altas = st.tabs([
+        tab_homologar, tab_provisionales, tab_bajas, tab_ext, tab_altas = st.tabs([
             f"🔄 Conciliar Códigos ({len(homologaciones)})",
-            f"🚨 Bajas a Procesar ({len(bajas_reales)})",
+            f"⏳ Altas Provisionales ({len(altas_provisionales)})",
+            f"🚨 Bajas Reales ({len(bajas_reales)})",
             f"🛡️ Externos Omitidos ({len(externos_protegidos)})",
             f"✨ Nuevas Altas ({len(altas_detectadas)})"
         ])
@@ -344,59 +404,100 @@ def render():
                 st.success("✅ No hay colaboradores con códigos provisionales pendientes de conciliar.")
 
         # ----------------------------------------------------------------------
-        # TAB 2: BAJAS A PROCESAR
+        # TAB 2: ALTAS PROVISIONALES LOCALES (EN ESPERA DE SUBIDA A VPS)
+        # ----------------------------------------------------------------------
+        with tab_provisionales:
+            if not altas_provisionales.empty:
+                st.info("💡 **Los siguientes colaboradores fueron dados de alta localmente y están a la espera de que RH los registre formalmente en el VPS:**")
+                st.caption("No se consideran bajas. Cuando RH los suba al VPS central, aparecerán en 'Conciliar Códigos' para asignarles su ID definitivo.")
+                st.dataframe(
+                    altas_provisionales[["codigo_disp", "nombre_completo", "sucursal", "puesto"]].rename(columns={
+                        "codigo_disp": "Código Local",
+                        "nombre_completo": "Colaborador",
+                        "sucursal": "Sucursal",
+                        "puesto": "Puesto"
+                    }),
+                    use_container_width=True,
+                    hide_index=True
+                )
+            else:
+                st.success("✅ No hay altas provisionales en espera.")
+
+        # ----------------------------------------------------------------------
+        # TAB 3: BAJAS REALES
         # ----------------------------------------------------------------------
         with tab_bajas:
             if not bajas_reales.empty:
-                st.error("Los siguientes empleados internos ya no están activos en VPS central. Procesa sus equipos:")
+                st.error("Los siguientes colaboradores ya no aparecen en el VPS central. Procesa la entrega de sus equipos y confírmalos como baja:")
 
                 lista_bajas = [f"{r['codigo_disp']} - {r['nombre_completo']} ({r['sucursal']})" for _, r in bajas_reales.iterrows()]
-                emp_sel = st.selectbox("Selecciona colaborador para procesar salida:", lista_bajas, key="sel_baja_salida")
+                emp_sel = st.selectbox("Selecciona colaborador a tramitar:", lista_bajas, key="sel_baja_salida")
 
                 if emp_sel:
                     cod_sel = emp_sel.split(" - ")[0]
                     row_emp = bajas_reales[bajas_reales["codigo_disp"] == cod_sel].iloc[0]
                     equipos = obtener_equipos_empleado(cod_sel)
 
-                    st.markdown(f"#### 📦 Equipos Asignados a `{row_emp['nombre_completo']}` ({row_emp['sucursal']})")
+                    st.divider()
+                    col_baja_left, col_baja_right = st.columns([2.5, 1.5])
 
-                    if equipos:
-                        for eq in equipos:
-                            with st.expander(f"⚙️ {eq['descr']}", expanded=True):
-                                c_e1, c_e2, c_e3 = st.columns([1.5, 2, 1])
-                                with c_e1:
-                                    st_dest = st.selectbox(
-                                        f"Estatus destino ({eq['tipo']}):",
-                                        ["DISPONIBLE", "EN MANTENIMIENTO", "EN REPARACIÓN", "INACTIVO"],
-                                        key=f"st_eq_{eq['id']}"
-                                    )
-                                with c_e2:
-                                    obs_dest = st.text_input(
-                                        "Observaciones / Destino:",
-                                        value="Baja de colaborador vía sincronizador",
-                                        key=f"obs_eq_{eq['id']}"
-                                    )
-                                with c_e3:
-                                    st.write("")
-                                    dict_est_lib = {"DISPONIBLE": 4, "EN MANTENIMIENTO": 5, "EN REPARACIÓN": 6, "INACTIVO": 2}
-                                    if st.button(f"💥 Liberar {eq['tipo']}", key=f"btn_lib_{eq['id']}"):
-                                        if procesar_desvinculacion_equipo(
-                                            tipo_equipo=eq['tipo'],
-                                            id_equipo=eq['id'],
-                                            nuevo_estatus_id=dict_est_lib[st_dest],
-                                            razon_motivo=obs_dest,
-                                            nombre_colaborador=f"{row_emp['nombre_completo']} (Cód: {cod_sel})"
-                                        ):
-                                            st.session_state["mensaje_exito_sync"] = f"🎉 ¡Equipo {eq['tipo']} ({eq['id']}) liberado correctamente con estatus: {st_dest}!"
-                                            del st.session_state["diag_data"]
-                                            st.rerun()
-                    else:
-                        st.info("Este colaborador no tiene equipos asignados en el inventario.")
+                    with col_baja_left:
+                        st.markdown(f"#### 📦 Equipos Asignados a `{row_emp['nombre_completo']}`")
+                        if equipos:
+                            for eq in equipos:
+                                with st.expander(f"⚙️ {eq['descr']}", expanded=True):
+                                    c_e1, c_e2, c_e3 = st.columns([1.5, 2, 1])
+                                    with c_e1:
+                                        st_dest = st.selectbox(
+                                            f"Estatus destino ({eq['tipo']}):",
+                                            ["DISPONIBLE", "EN MANTENIMIENTO", "EN REPARACIÓN", "INACTIVO"],
+                                            key=f"st_eq_{eq['id']}"
+                                        )
+                                    with c_e2:
+                                        obs_dest = st.text_input(
+                                            "Observaciones / Destino:",
+                                            value="Baja de colaborador vía sincronizador",
+                                            key=f"obs_eq_{eq['id']}"
+                                        )
+                                    with c_e3:
+                                        st.write("")
+                                        dict_est_lib = {"DISPONIBLE": 4, "EN MANTENIMIENTO": 5, "EN REPARACIÓN": 6, "INACTIVO": 2}
+                                        if st.button(f"💥 Liberar {eq['tipo']}", key=f"btn_lib_{eq['id']}"):
+                                            if procesar_desvinculacion_equipo(
+                                                tipo_equipo=eq['tipo'],
+                                                id_equipo=eq['id'],
+                                                nuevo_estatus_id=dict_est_lib[st_dest],
+                                                razon_motivo=obs_dest,
+                                                nombre_colaborador=f"{row_emp['nombre_completo']} (Cód: {cod_sel})"
+                                            ):
+                                                st.session_state["mensaje_exito_sync"] = f"🎉 ¡Equipo {eq['tipo']} ({eq['id']}) liberado correctamente!"
+                                                del st.session_state["diag_data"]
+                                                st.rerun()
+                        else:
+                            st.info("Este colaborador no tiene equipos asignados actualmente.")
+
+                    with col_baja_right:
+                        st.markdown("#### 🚨 Confirmar Estatus")
+                        if st.button("🛑 Confirmar Baja Definitiva en BDD", type="primary", key=f"btn_baja_def_{cod_sel}"):
+                            ok_baja, err_b = procesar_baja_empleado_bdd(cod_sel)
+                            if ok_baja:
+                                st.session_state["mensaje_exito_sync"] = f"🎉 ¡El colaborador `{row_emp['nombre_completo']}` (Código: {cod_sel}) ha sido marcado como INACTIVO y sus recursos liberados!"
+                                del st.session_state["diag_data"]
+                                st.rerun()
+                            else:
+                                st.error(f"Error al dar de baja: {err_b}")
+
+                        st.write("")
+                        if st.button("⏳ Es Alta Local (Mover a En Espera)", key=f"btn_prov_{cod_sel}"):
+                            st.session_state["codigos_provisionales_protegidos"].add(cod_sel)
+                            st.session_state["mensaje_exito_sync"] = f"ℹ️ ¡`{row_emp['nombre_completo']}` clasificado como Alta Provisional Local en espera de VPS!"
+                            del st.session_state["diag_data"]
+                            st.rerun()
             else:
-                st.success("✅ No hay bajas de empleados pendientes por procesar.")
+                st.success("✅ No hay colaboradores pendientes por dar de baja.")
 
         # ----------------------------------------------------------------------
-        # TAB 3: EXTERNOS OMITIDOS
+        # TAB 4: EXTERNOS OMITIDOS
         # ----------------------------------------------------------------------
         with tab_ext:
             if not externos_protegidos.empty:
@@ -415,7 +516,7 @@ def render():
                 st.caption("No hay empleados externos identificados en la lista local.")
 
         # ----------------------------------------------------------------------
-        # TAB 4: NUEVAS ALTAS (PROCESAMIENTO INDIVIDUAL CONTROLADO)
+        # TAB 5: NUEVAS ALTAS VPS
         # ----------------------------------------------------------------------
         with tab_altas:
             if not altas_detectadas.empty:

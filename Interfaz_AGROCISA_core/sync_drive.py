@@ -33,7 +33,7 @@ def obtener_lista_distribucion_df():
                 MAX(CASE WHEN id_tipo_correo = 2 THEN direccion_correo END) AS correo_gmail,
                 MAX(CASE WHEN id_tipo_correo = 1 THEN direccion_correo END) AS correo_corporativo
             FROM correos_electronicos
-            WHERE id_estatus_correo = 1
+            WHERE id_estatus_correo = 1 AND codigo_empleado IS NOT NULL
             GROUP BY cod_clean
         ) ce ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = ce.cod_clean
         LEFT JOIN (
@@ -53,11 +53,25 @@ def obtener_lista_distribucion_df():
             GROUP BY cod_clean
         ) ic ON TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR)) = ic.cod_clean
         WHERE e.id_estatus_empleado = 1
-        ORDER BY Nombre ASC
+        ORDER BY 
+            Sucursal ASC, 
+            Departamento ASC, 
+            Puesto ASC, 
+            Nombre ASC
     """
     try:
         df = pd.read_sql(query, conn)
         conn.close()
+
+        if not df.empty:
+            # Filtrar solo colaboradores que tengan al menos 1 medio de contacto asignado
+            mascara_contacto = (
+                (df["Correo Gmail"].astype(str).str.strip() != "") |
+                (df["Correo Institucional"].astype(str).str.strip() != "") |
+                (df["Celular"].astype(str).str.strip() != "")
+            )
+            df = df[mascara_contacto].reset_index(drop=True)
+
         return df
     except Exception as e:
         conn.close()
@@ -76,7 +90,7 @@ def auto_sincronizar_google_sheet():
 
         df = obtener_lista_distribucion_df()
         if df.empty:
-            return False, "La consulta de base de datos no arrojó registros de empleados activos."
+            return False, "No se encontraron colaboradores activos con medios de contacto asignados."
 
         df = df.fillna("")
 

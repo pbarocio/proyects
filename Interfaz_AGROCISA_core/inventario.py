@@ -608,7 +608,7 @@ def render_filtros_inventario(df_origen, key_prefix):
 
     c_busq, f1, f2, f3 = st.columns([1.5, 1, 1, 1])
     with c_busq:
-        txt_busq = st.text_input("Búsqueda libre:", placeholder="Ej. Juan, Morelia...", key=f"txt_{key_prefix}")
+        txt_busq = st.text_input("Búsqueda libre:", placeholder="Ej. Juan, Morelia, Iphone...", key=f"txt_{key_prefix}")
     with f1:
         opts_suc = ["Todas"] + sorted(list(df_origen["sucursal"].dropna().unique()))
         suc_sel = st.selectbox("Sucursal:", opts_suc, key=f"suc_{key_prefix}")
@@ -637,10 +637,14 @@ def render_filtros_inventario(df_origen, key_prefix):
 
     if txt_busq.strip():
         term = txt_busq.strip().lower()
-        cols_a_buscar = [c for c in df_filt.columns if df_filt[c].dtype == object]
+        # Evalúa todas las columnas visibles de datos sin filtrar por dtype
+        cols_a_buscar = [
+            c for c in df_filt.columns 
+            if not str(c).startswith("id_") and not str(c).endswith("_id")
+        ]
         mascara = pd.Series(False, index=df_filt.index)
         for col in cols_a_buscar:
-            mascara |= df_filt[col].astype(str).str.lower().str.contains(term, na=False)
+            mascara |= df_filt[col].astype(str).str.lower().str.contains(term, regex=False, na=False)
         df_filt = df_filt[mascara]
 
     return df_filt
@@ -1219,12 +1223,12 @@ def render():
                 if txt_red.strip():
                     term = txt_red.strip().lower()
                     df_filt_red = df_filt_red[
-                        df_filt_red["tipo"].astype(str).str.lower().str.contains(term) |
-                        df_filt_red["marca"].astype(str).str.lower().str.contains(term) |
-                        df_filt_red["modelo"].astype(str).str.lower().str.contains(term) |
-                        df_filt_red["hostname"].astype(str).str.lower().str.contains(term) |
-                        df_filt_red["numero_serie"].astype(str).str.lower().str.contains(term) |
-                        df_filt_red["ubicacion_fisica"].astype(str).str.lower().str.contains(term)
+                        df_filt_red["tipo"].astype(str).str.lower().str.contains(term, regex=False, na=False) |
+                        df_filt_red["marca"].astype(str).str.lower().str.contains(term, regex=False, na=False) |
+                        df_filt_red["modelo"].astype(str).str.lower().str.contains(term, regex=False, na=False) |
+                        df_filt_red["hostname"].astype(str).str.lower().str.contains(term, regex=False, na=False) |
+                        df_filt_red["numero_serie"].astype(str).str.lower().str.contains(term, regex=False, na=False) |
+                        df_filt_red["ubicacion_fisica"].astype(str).str.lower().str.contains(term, regex=False, na=False)
                     ]
 
                 df_view = df_filt_red[["id_dispositivo", "sucursal", "tipo", "marca", "modelo", "hostname", "ubicacion_fisica", "numero_serie", "nuevo_usuario", "password_nuevo", "ssid", "password_wpa"]]

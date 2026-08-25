@@ -192,9 +192,9 @@ def guardar_nuevo_empleado_bdd(codigo, nombre, ap_pat, ap_mat, id_suc, id_dep, i
         """
         cursor.execute(query, (
             codigo_clean, 
-            str(nombre).strip().upper(), 
-            str(ap_pat).strip().upper(), 
-            str(ap_mat).strip().upper() if ap_mat else None,
+            str(nombre).strip().title(), 
+            str(ap_pat).strip().title(), 
+            str(ap_mat).strip().title() if ap_mat and str(ap_mat).strip() else None,
             int(id_suc), 
             int(id_dep), 
             int(id_pue),
@@ -217,6 +217,7 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
     cursor = conn.cursor()
     c_viejo = str(codigo_viejo).strip()
     c_nuevo = str(codigo_nuevo).strip().zfill(5)
+    id_estatus_int = int(id_estatus)
 
     try:
         cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
@@ -229,17 +230,32 @@ def actualizar_empleado_en_cascada_bdd(codigo_viejo, codigo_nuevo, nombre, ap_pa
         """
         cursor.execute(query_emp, (
             c_nuevo, 
-            str(nombre).strip().upper(), 
-            str(ap_pat).strip().upper(), 
-            str(ap_mat).strip().upper() if ap_mat else None,
+            str(nombre).strip().title(), 
+            str(ap_pat).strip().title(), 
+            str(ap_mat).strip().title() if ap_mat and str(ap_mat).strip() else None,
             int(id_suc), 
             int(id_dep), 
             int(id_pue),
             int(id_contrato),
-            int(id_estatus), 
+            id_estatus_int, 
             c_viejo
         ))
 
+        # Liberación automática de líneas y responsivas si el empleado pasa a INACTIVO/BAJA
+        if id_estatus_int != 1:
+            cursor.execute("""
+                UPDATE lineas_telefonicas 
+                SET codigo_empleado = NULL, id_estatus_linea = 4 
+                WHERE TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+            """, (c_nuevo,))
+
+            cursor.execute("""
+                UPDATE responsivas_celulares 
+                SET id_status = 2 
+                WHERE TRIM(LEADING '0' FROM CAST(codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(%s AS CHAR))
+            """, (c_nuevo,))
+
+        # Propagación en cascada si cambia el código
         if c_viejo.lstrip('0') != c_nuevo.lstrip('0'):
             tablas_cascada = [
                 ("correos_electronicos", "codigo_empleado"),
@@ -521,6 +537,8 @@ def render():
                     elif existe_codigo_empleado(cod_in):
                         st.error(f"⛔ El código de empleado `{cod_in.strip()}` ya existe en la base de datos.")
                     else:
+                        nom_t = nom_in.strip().title()
+                        pat_t = pat_in.strip().title()
                         if guardar_nuevo_empleado_bdd(
                             codigo=cod_in,
                             nombre=nom_in,
@@ -532,7 +550,7 @@ def render():
                             id_contrato=int(dict_contratos[contrato_nom]),
                             id_estatus=int(dict_est_emp[est_e_nom])
                         ):
-                            st.session_state["mensaje_exito_correo"] = f"🎉 ¡Colaborador `{nom_in.strip().upper()} {pat_in.strip().upper()}` (Código: {cod_in.strip().zfill(5)}) dado de alta con éxito!"
+                            st.session_state["mensaje_exito_correo"] = f"🎉 ¡Colaborador `{nom_t} {pat_t}` (Código: {cod_in.strip().zfill(5)}) dado de alta con éxito!"
                             st.rerun()
 
         else:
@@ -603,6 +621,8 @@ def render():
                             elif cod_in.strip().zfill(5) != cod_def and existe_codigo_empleado(cod_in):
                                 st.error(f"⛔ El nuevo código `{cod_in.strip()}` ya pertenece a otro colaborador.")
                             else:
+                                nom_t = nom_in.strip().title()
+                                pat_t = pat_in.strip().title()
                                 if actualizar_empleado_en_cascada_bdd(
                                     codigo_viejo=cod_def,
                                     codigo_nuevo=cod_in,
@@ -615,7 +635,7 @@ def render():
                                     id_contrato=int(dict_contratos[contrato_nom]),
                                     id_estatus=int(dict_est_emp[est_e_nom])
                                 ):
-                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Datos de `{nom_in.strip().upper()} {pat_in.strip().upper()}` actualizados con éxito! (Código: `{cod_in.strip().zfill(5)}` propagado en cascada)."
+                                    st.session_state["mensaje_exito_correo"] = f"🎉 ¡Datos de `{nom_t} {pat_t}` actualizados con éxito! (Código: `{cod_in.strip().zfill(5)}` propagado en cascada)."
                                     st.rerun()
                 else:
                     st.info("👆 Selecciona o escribe un colaborador en el buscador de arriba para cargar sus datos.")
