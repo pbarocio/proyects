@@ -1,0 +1,11 @@
+Monitoreo_API_Prometheus/
+├── config.py            # Carga variables de entorno (.env)
+├── topology.json        # Tu mapa de sucursales y enlaces esperados
+├── mikrotik_api.py      # Módulo que hace las peticiones HTTP a la REST API
+├── alert_manager.py     # Tu bot de Telegram (tal como ya lo tienes)
+├── exporter.py          # Definición de métricas de Prometheus y loop continuo
+├── .env                 # Secretos y credenciales
+└── requirements.txt     # requests, prometheus_client, pyTelegramBotAPI, python-dotenv
+
+
+
