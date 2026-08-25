@@ -20,7 +20,6 @@ def get_api_router(config, branch_name, branch_ip):
         emoji1 ="🔐"
         emoji2 = "✅"
         logging.info(f"CONECTANDO A {emoji1:^2}{branch_name:^13}{emoji2:^2}...")
-        #print(f"CONECTANDO A {emoji1:^2}{branch_name:^13}{emoji2:^2}...")
         
         response = requests.get(
             url,

@@ -10,7 +10,7 @@ log_file = path_logs / "monitoreo_enlaces_agrocisa.log"
 
 handler = RotatingFileHandler(
     log_file, 
-    maxBytes=5 * 1024 * 1024,  # Máximo 5 MB por archivo
+    maxBytes=200 * 1024 * 1024,  # Máximo 5 MB por archivo
     backupCount=3              # Conserva hasta 3 archivos (.log.1, .log.2, etc.)
 )
 
