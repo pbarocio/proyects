@@ -12,33 +12,18 @@ import logger as logg
         
 def control():
     try:
-        now = datetime.datetime.now() #Extraer datos de fecha actual y hora
-        date = now.strftime("%Y-%m-%d") #Dar formato a la fehca y hora para escribir el día en el archivo Histrórico
-        year = now.strftime("%Y") #Extraer año para estructurar el nombre del Archivo Histórico
-        month = now.strftime("%m") #Extraer el mes para estructurar el nombre del Archivo Histórico
-        day = now.strftime("%A") #Extaemos el día para escribir el día en el archivo Histrórico
-        hour = now.strftime("%H:%M:%S") #Extraemos la hora para escribir el día en el archivo Histrórico
         config = get_config()
         branches = tp.load_topology(config,"BRANCHES")
         ssot = tp.load_topology(config,"SSOT")
-        tmp_dir = Path(tempfile.gettempdir()) #Expandir directorio temporal del SO
-        counter_file = Path(tmp_dir / "counter.json") #Definimos la ruta del archivo que aloja el contador de ejecuciones
-        counter = f_u.load_counter(counter_file) #Cargamos el # de ejecución
         log_dir = config["log_dir"] #Definimos el directorio de los archivos
         log_dir.mkdir(parents=True, exist_ok=True) #Crear el directorio de logs sí no existe
         current_state_file = log_dir / "Estado_Actual.json"
-        historical_file = log_dir / f"Historical-{year}-{month}.csv" #Crear archivo Histórico.csv
         current_timestamp = str(int(datetime.datetime.now().timestamp())) #TimeStamp Actual
         empty_timestamp = "-" #Timestamp para enlaces activos
-        something_change = False
-        write_time = False
-        register_change = ""
         previous_state = f_u.load_previous_state(current_state_file) #Extraemos los valores anteriores del estado previo
         current_state = get_current_state(config,previous_state,branches,ssot,current_timestamp,empty_timestamp) #Cargamos el estado actual
-        #Definimos los timestamps correctos para caídas y registros de escritura de archivos
-        current_state_timestamps, something_change , write_time, previous_lastrecord, register_change = handle_timestamps(current_state, previous_state, current_timestamp)
-        #Decidimos la escritura de los archivos
-        handle_write_files(counter,counter_file,current_state_timestamps, current_state_file, historical_file, date, hour, day, something_change, write_time, previous_lastrecord, register_change, current_timestamp)
+        current_state_timestamps = handle_timestamps(current_state, previous_state, current_timestamp) #Definimos los timestamps correctos para caídas y registros de escritura de archivos
+        f_u.write_json_files(current_state_file,current_state_timestamps) #Escribimos el estado actual con los timestamps
         
     except Exception as error:
         logging.critical(f"¡¡¡ERROR FATAL!!! \n{error}", exc_info=True)
@@ -82,10 +67,6 @@ def handle_branch_down(ssot,current_branch,current_timestamp):
 
 def handle_timestamps(current_state, previous_state, current_timestamp):
     try:
-        something_change = False
-        write_time = False
-        previous_record = ""
-        register_change = ""
         for current_branch, links in current_state.items(): #Iteramos sobre los enlaces de Cada Sucursal para acceder a los elementos y decidir los timestamps
                 if(current_branch == "BRANCHES-DOWN"):
                     continue
@@ -119,22 +100,9 @@ def handle_timestamps(current_state, previous_state, current_timestamp):
                         notification, write_timestamp, link_changed, event = handle_link_change(previous_flag, current_flag, previous_link_timestamp, current_timestamp, notification, current_branch, current_link)
                         values["notification"] = notification
                         values["timestamp"] = write_timestamp
-                        previous_record = previous_link_lastrecord
                         logging.info(f"handle_link_chage() | Notification => {notification} | Write_Timestamp => {write_timestamp} | Link_Changed => {link_changed} | Event => {event}")
                         
-                        if (int(current_timestamp) - int(previous_link_lastrecord) > 600):
-                            write_time = True
-                        else:
-                            values["lastrecord"] = previous_link_lastrecord
-                        
-                        if link_changed:
-                            register_change = f"[\"{current_branch}-{current_link}\"] ↪️ (\"{previous_flag}\" <=> \"{current_flag}\")"
-                            something_change = True
-
-                        logging.info(f"El status de Something_Change => {something_change}")
-                        logging.info(f"El status de Write_Time => {write_time}")
-                        
-        return current_state, something_change , write_time, previous_record, register_change
+        return current_state
     except Exception as error:
         logging.error(f"\n❌ ‼️ 🔴 ERROR VALIDANDO LOS TIMESTAMPS ‼️ -> {error}\n", exc_info=True)
         return [], [], [], [], []
@@ -213,23 +181,23 @@ def handle_link_change(previous_flag, current_flag, previous_link_timestamp, cur
         logging.error(f"\n❌ ‼️ 🔴 ERROR VALIDANDO LOS CAMBIOS DE ESTADO ‼️ -> {error}\n", exc_info=True)
         return [], [], [], []
         
-def handle_write_files(counter, counter_file, current_state, current_state_file, historical_file, date, hour, day, something_change, write_time, previous_lastrecord, register_change, current_timestamp):
-    try:
-        logging.info("=" * 210)
-        if counter == 1 or something_change or write_time: #Sí alguna condición se cumple escribimos el Histórico
-            if counter == 1:
-                logging.info(f"✅ Es la primera ejecución ⚙️ después del reinicio")
-            if write_time:
-                logging.info(f"✅ Han transcurrido más \"10 min\" ⌛ => (\"{int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min\"/(\"{int(current_timestamp) - int(previous_lastrecord)})s\"")
-            if something_change:
-                logging.info(f"✅ Hubo cambio en \"{register_change}\"")
-            logging.info(f"💾 Se escribirán todos los archivos (Contador ⏱️ => \"{counter}\", Estado Actual 📝 => \"{current_state_file}\", y Arhivo Histórico 🗃️ => \"{historical_file}\")")
-            f_u.write_all_files(counter, counter_file, current_state_file, current_state, current_timestamp, historical_file, date, hour, day)
-        else:
-            logging.info(f"🚫 No han pasado los \"10 min\" o \"600s\" para escribir \"Historical_File\", el tiempo transcurrido es ⌛ \"({int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min\"/\"({int(current_timestamp) - int(previous_lastrecord)})s\", se escribió Previous_lastrecord (\"{previous_lastrecord}\") en lugar del Current_link_lastrecord (\"{current_timestamp}\")")
-            f_u.write_always_files(counter, counter_file, current_state_file, current_state)
+# def handle_write_files(counter, counter_file, current_state, current_state_file, historical_file, date, hour, day, something_change, write_time, previous_lastrecord, register_change, current_timestamp):
+#     try:
+#         logging.info("=" * 210)
+#         if counter == 1 or something_change or write_time: #Sí alguna condición se cumple escribimos el Histórico
+#             if counter == 1:
+#                 logging.info(f"✅ Es la primera ejecución ⚙️ después del reinicio")
+#             if write_time:
+#                 logging.info(f"✅ Han transcurrido más \"10 min\" ⌛ => (\"{int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min\"/(\"{int(current_timestamp) - int(previous_lastrecord)})s\"")
+#             if something_change:
+#                 logging.info(f"✅ Hubo cambio en \"{register_change}\"")
+#             logging.info(f"💾 Se escribirán todos los archivos (Contador ⏱️ => \"{counter}\", Estado Actual 📝 => \"{current_state_file}\", y Arhivo Histórico 🗃️ => \"{historical_file}\")")
+#             f_u.write_all_files(counter, counter_file, current_state_file, current_state, current_timestamp, historical_file, date, hour, day)
+#         else:
+#             logging.info(f"🚫 No han pasado los \"10 min\" o \"600s\" para escribir \"Historical_File\", el tiempo transcurrido es ⌛ \"({int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min\"/\"({int(current_timestamp) - int(previous_lastrecord)})s\", se escribió Previous_lastrecord (\"{previous_lastrecord}\") en lugar del Current_link_lastrecord (\"{current_timestamp}\")")
+#             f_u.write_always_files(counter, counter_file, current_state_file, current_state)
         
-        logging.info("\n" + "=" * 102 + f"\n 💡 ÉSTE SCRIPT SE HA EJECUTADO **{counter}** VECES 🏁 EL DÍA DE HOY, PUEDES VER LOS DETALLES EN EL LOG 📋...\n" + "=" * 102)
-    except Exception as error:
-        logging.error(f"\n❌ ‼️ 🔴 ERROR EN LA VALIDACIÓN DE ESCRITURA ‼️ -> {error}\n", exc_info=True)
-        return []
+#         logging.info("\n" + "=" * 102 + f"\n 💡 ÉSTE SCRIPT SE HA EJECUTADO **{counter}** VECES 🏁 EL DÍA DE HOY, PUEDES VER LOS DETALLES EN EL LOG 📋...\n" + "=" * 102)
+#     except Exception as error:
+#         logging.error(f"\n❌ ‼️ 🔴 ERROR EN LA VALIDACIÓN DE ESCRITURA ‼️ -> {error}\n", exc_info=True)
+#         return []
