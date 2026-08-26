@@ -27,6 +27,9 @@ def print_current_state(link,flag,gateway,distance): #Imprimir en consola los es
         elif flag == "s":
             emoji = "🟡"
             print(f"{flag_show:^10} | {emoji:^3}{flag:<6} |")
+        elif flag == "X":
+            emoji = "⛔"  # o ⚪
+            print(f"{flag_show:^10} | {emoji:^2}{flag:<7} |")
         else:
             emoji = "🔴"
             print(f"{flag_show:^10} | {emoji:^2}{flag:<7} |")
@@ -42,8 +45,8 @@ def print_link_down_old(branch_name,link,elapsed_time,notification): #Funcion qu
         print(f"🔴 TIEMPO FUERA: ⌛ {transcurrido}")
         logging.warning(f"⚠️ [{branch_name}-{link}] 🔴 TIEMPO FUERA: ⌛ {transcurrido}")
         if elapsed_time >= 1200 and notification: #Calculamos la ventana de la alerta de 20 a 22 minutos #and elapsed_time <= 1400
-            logging.warning(f"⚠️ ALERTA DE TELEGRAM!!! --- 🚨 ‼️ ALERTA ‼️ 🚨 🔴[{branch_name}-{link}] ❌ \nTIEMPO FUERA: ⌛ {transcurrido}")
-            am.send_notification(f"🚨‼️ALERTA‼️🚨\n🔴[{branch_name}-{link}] ❌\nTIEMPO FUERA: ⌛ {transcurrido}") #Enviamos alerta de Telegram con ése texto
+            logging.warning(f"⚠️ ALERTA DE TELEGRAM!!! --- 🚨 ‼️ ALERTA ‼️ 🚨 ENLACE CAÍDO 🔴[{branch_name}-{link}] ❌ \nTIEMPO FUERA: ⌛ {transcurrido}")
+            am.send_notification(f"🚨‼️ALERTA‼️🚨\nENLACE CAÍDO... \n🔴[{branch_name}-{link}] ❌\nTIEMPO FUERA: ⌛ {transcurrido}") #Enviamos alerta de Telegram con ése texto
             return False
         return notification
     except Exception as error:
@@ -54,8 +57,8 @@ def print_recovery_link(branch_name,link,elapsed_time):
         transcurrido = datetime.timedelta(seconds=elapsed_time)
         print(f"✅ RECUPERACIÓN, ESTUVO FUERA POR ⌛ {transcurrido}\n")
         logging.warning(f"⚠️ [{branch_name}-{link}] ENLACE DE NUEVO ACTIVO ✅, ESTUVO FUERA POR ⌛ {transcurrido}")
-        logging.warning(f"ALERTA DE TELEGRAM!!! --- 📢 ❕ALERTA ❕ 📢 \nDE NUEVO EN LÍNEA... 🟢[{branch_name}-{link}] ✅ ESTUVO FUERA POR ⌛ {transcurrido}")
-        am.send_notification(f"📢❕ALERTA ❕ 📢 \nDE NUEVO EN LÍNEA...\n🟢[{branch_name}-{link}] ✅\nESTUVO FUERA POR ⌛ {transcurrido}") #Enviamos alerta de Telegram con el texto
+        logging.warning(f"ALERTA DE TELEGRAM!!! --- 📢 ❕ALERTA ❕ 📢 🟢[{branch_name}-{link}] DE NUEVO EN LÍNEA... ✅ ESTUVO FUERA POR ⌛ {transcurrido}")
+        am.send_notification(f"📢❕ALERTA ❕ 📢 \n🟢[{branch_name}-{link}] ✅ \nDE NUEVO EN LÍNEA... \nESTUVO FUERA POR ⌛ {transcurrido}") #Enviamos alerta de Telegram con el texto
 
     except Exception as error:
         logging.error(f"\n❌ ‼️ 🔴 ERROR AL MOSTRAR TIEMPO DE RECUPERACIÓN ‼️ -> {error}\n", exc_info=True)

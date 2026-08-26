@@ -8,7 +8,8 @@ import api_client as api
 import parser as parser
 import file_utils as f_u
 import topology as tp
-import logger as logg      
+import logger as logg
+import exporter
         
 def control():
     try:
@@ -24,7 +25,7 @@ def control():
         current_state = get_current_state(config,previous_state,branches,ssot,current_timestamp,empty_timestamp) #Cargamos el estado actual
         current_state_timestamps = handle_timestamps(current_state, previous_state, current_timestamp) #Definimos los timestamps correctos para caídas y registros de escritura de archivos
         f_u.write_json_files(current_state_file,current_state_timestamps) #Escribimos el estado actual con los timestamps
-        
+        exporter.increment_execution()
     except Exception as error:
         logging.critical(f"¡¡¡ERROR FATAL!!! \n{error}", exc_info=True)
         raise
@@ -77,11 +78,13 @@ def handle_timestamps(current_state, previous_state, current_timestamp):
                     for link, values in links.items():
                         current_link = link
                         current_flag = values.get("flag")
-                        current_gateway = values.get("gateway")
+                        current_gateway = values.get("gateway", "N/A")
                         current_distance = values.get("distance")
                         current_link_timestamp = values.get("timestamp")
                         current_link_lastrecord = values.get("lastrecord")
                         logging.info("=" * 210)
+                        is_active = current_flag in ["As", "s"]
+                        exporter.update_link_metric(current_branch, current_link, current_gateway, is_active)
                         logging.info(f"Link Actual: [{current_branch}-{current_link}]")
                         previous_flag, previous_link_timestamp, notification, previous_link_lastrecord = "" , "" , True, "" #Inicializamos las variables
                         previous_flag, previous_link_timestamp, notification, previous_link_lastrecord = f_u.get_previous_state(previous_state, current_branch, current_link, current_flag,
@@ -170,34 +173,29 @@ def handle_link_change(previous_flag, current_flag, previous_link_timestamp, cur
                 logging.warning(f"⚠️ [{current_branch}-{current_link}] ES EL ENLACE PRINCIPAL AHORA ↪️")
                 logging.info(f"# Enlace Principal ... # | Notification => {notification} | Write_Timestamp => {empty_timestamp} | Link_Changed => True | Event => PRIMARY_LINK")
                 return notification, empty_timestamp, True, "PRIMARY_LINK"
+            
+            case ("As", "X") | ("s", "X") | ("Is", "X"):
+                print(f"⚠️ [{current_branch}-{current_link}] DESHABILITADO ADMINISTRATIVAMENTE ⛔")
+                logging.warning(f"⚠️ [{current_branch}-{current_link}] DESHABILITADO ADMINISTRATIVAMENTE ⛔")
+                return False, empty_timestamp, True, "LINK_DISABLED"
+            
+            case ("X", "As") | ("X", "s"):
+                print(f"✅ [{current_branch}-{current_link}] HABILITADO NUEVAMENTE 🟢")
+                logging.info(f"✅ [{current_branch}-{current_link}] HABILITADO NUEVAMENTE 🟢")
+                return True, empty_timestamp, True, "LINK_ENABLED" # notification en True para que vuelva a vigilar caídas futuras
+            
+            case ("X", "X"):
+                print(f"⛔ [{current_branch}-{current_link}] PERMANECE DESHABILITADO")
+                logging.info(f"⛔ [{current_branch}-{current_link}] PERMANECE DESHABILITADO")
+                return False, empty_timestamp, False, "DISABLED_NO_CHANGE"
 
-            case _: # 🟢 SIN CAMBIOS (As -> As, o s -> s)
+            case _: # 🟢 SIN CAMBIOS (As -> As, s -> s)
                 print(f"🟢 SIN CAMBIOS")
                 logging.info(f"🟢 \"{p_flag}\" \"{c_flag}\" # No hubo cambios #")
                 logging.warning(f"⚠️ [{current_branch}-{current_link}] SIN CAMBIOS 🟢")
                 logging.info(f" # No hubo cambios# | Notification => {notification} | Write_Timestamp => {empty_timestamp} | Link_Changed => False | Event => NO_CHANGE")
                 return notification, empty_timestamp, False, "NO_CHANGE"
+            
     except Exception as error:
         logging.error(f"\n❌ ‼️ 🔴 ERROR VALIDANDO LOS CAMBIOS DE ESTADO ‼️ -> {error}\n", exc_info=True)
         return [], [], [], []
-        
-# def handle_write_files(counter, counter_file, current_state, current_state_file, historical_file, date, hour, day, something_change, write_time, previous_lastrecord, register_change, current_timestamp):
-#     try:
-#         logging.info("=" * 210)
-#         if counter == 1 or something_change or write_time: #Sí alguna condición se cumple escribimos el Histórico
-#             if counter == 1:
-#                 logging.info(f"✅ Es la primera ejecución ⚙️ después del reinicio")
-#             if write_time:
-#                 logging.info(f"✅ Han transcurrido más \"10 min\" ⌛ => (\"{int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min\"/(\"{int(current_timestamp) - int(previous_lastrecord)})s\"")
-#             if something_change:
-#                 logging.info(f"✅ Hubo cambio en \"{register_change}\"")
-#             logging.info(f"💾 Se escribirán todos los archivos (Contador ⏱️ => \"{counter}\", Estado Actual 📝 => \"{current_state_file}\", y Arhivo Histórico 🗃️ => \"{historical_file}\")")
-#             f_u.write_all_files(counter, counter_file, current_state_file, current_state, current_timestamp, historical_file, date, hour, day)
-#         else:
-#             logging.info(f"🚫 No han pasado los \"10 min\" o \"600s\" para escribir \"Historical_File\", el tiempo transcurrido es ⌛ \"({int((int(current_timestamp) - int(previous_lastrecord)) / 60)})min\"/\"({int(current_timestamp) - int(previous_lastrecord)})s\", se escribió Previous_lastrecord (\"{previous_lastrecord}\") en lugar del Current_link_lastrecord (\"{current_timestamp}\")")
-#             f_u.write_always_files(counter, counter_file, current_state_file, current_state)
-        
-#         logging.info("\n" + "=" * 102 + f"\n 💡 ÉSTE SCRIPT SE HA EJECUTADO **{counter}** VECES 🏁 EL DÍA DE HOY, PUEDES VER LOS DETALLES EN EL LOG 📋...\n" + "=" * 102)
-#     except Exception as error:
-#         logging.error(f"\n❌ ‼️ 🔴 ERROR EN LA VALIDACIÓN DE ESCRITURA ‼️ -> {error}\n", exc_info=True)
-#         return []

@@ -45,5 +45,5 @@ def get_api_router(config, branch_name, branch_ip):
     except Exception as e:
         emoji ="🔴"
         emoji2 ="⚠️⚠️⚠️"
-        logging.critical(f"\"{emoji2:^6}{emoji:^3}{branch_name:^10}\"ESTÁ FUERA‼️\n{error}", exc_info=True)
+        logging.critical(f"\"{emoji2:^6}{emoji:^3}{branch_name:^10}\"ESTÁ FUERA‼️\n{e}", exc_info=True)
         return False, [], f"Error de conexión: {str(e)}"

@@ -48,16 +48,6 @@ def read_current_status():
         rutas_raw = response.json()
         
         links = {}
-        
-# link_timestamp = str(f_u.get_current_timestamp(flag,current_timestamp,empty_timestamp))
-# route_list[link] = {
-#         "flag": flag,
-#         "gateway": gateway,
-#         "distance": distance,
-#         "timestamp": link_timestamp,
-#         "notification": None,
-#         "lastrecord": current_timestamp,
-#     }
 
         for item in rutas_raw:
             link = item.get("comment")
