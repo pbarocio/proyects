@@ -2,7 +2,6 @@ import logging
 import datetime #Importar librería para manejar fecha y hora
 import time #Libreria para poder usar sleep
 from pathlib import Path #Librería para manejar directorios cómo objetos
-import tempfile #Librería para usar archivos temporales
 from config import get_config
 import api_client as api
 import parser as parser

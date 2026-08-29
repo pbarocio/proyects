@@ -8,4 +8,7 @@ Monitoreo_API_Prometheus/
 └── requirements.txt     # requests, prometheus_client, pyTelegramBotAPI, python-dotenv
 
 
-
+|─ requests
+|─ pyTelegramBotAPI
+|─ python-dotenv
+|─ prometheus_client
