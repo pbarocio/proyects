@@ -1,0 +1,115 @@
+{
+    "BRANCHES-DOWN": {
+        "CORPORATIVO": true,
+        "PENJAMO": true,
+        "LAPIEDAD": true,
+        "MORELIA": true,
+        "PONCITLAN": true
+    },
+    "CORPORATIVO": {
+        "TELMEX-2": {
+            "flag": "Is",
+            "gateway": "8.8.4.4",
+            "distance": "2",
+            "timestamp": "1788378677",
+            "notification": false,
+            "lastrecord": "1788393591"
+        },
+        "TELCEL": {
+            "flag": "Is",
+            "gateway": "1.0.0.1",
+            "distance": "4",
+            "timestamp": "1788378677",
+            "notification": false,
+            "lastrecord": "1788393591"
+        },
+        "TELMEX-3": {
+            "flag": "s",
+            "gateway": "1.1.1.1",
+            "distance": "3",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        },
+        "TELMEX-1": {
+            "flag": "As",
+            "gateway": "8.8.8.8",
+            "distance": "1",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        }
+    },
+    "PENJAMO": {
+        "TELMEX-2": {
+            "flag": "s",
+            "gateway": "8.8.4.4",
+            "distance": "2",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        },
+        "TELMEX-1": {
+            "flag": "As",
+            "gateway": "8.8.8.8",
+            "distance": "1",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        }
+    },
+    "LAPIEDAD": {
+        "TELMEX-1": {
+            "flag": "As",
+            "gateway": "8.8.8.8",
+            "distance": "1",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        },
+        "TELMEX-2": {
+            "flag": "s",
+            "gateway": "8.8.4.4",
+            "distance": "2",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        }
+    },
+    "MORELIA": {
+        "TELMEX-1": {
+            "flag": "As",
+            "gateway": "8.8.8.8",
+            "distance": "1",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        },
+        "TELMEX-2": {
+            "flag": "s",
+            "gateway": "8.8.4.4",
+            "distance": "2",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        }
+    },
+    "PONCITLAN": {
+        "TELMEX-2": {
+            "flag": "s",
+            "gateway": "8.8.4.4",
+            "distance": "2",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        },
+        "TELMEX-1": {
+            "flag": "As",
+            "gateway": "8.8.8.8",
+            "distance": "1",
+            "timestamp": "-",
+            "notification": true,
+            "lastrecord": "1788393591"
+        }
+    }
+}

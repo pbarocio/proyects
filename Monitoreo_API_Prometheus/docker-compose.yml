@@ -1,4 +1,18 @@
 services:
+  monitoreo:
+    build: .
+    container_name: mikrotik_monitoreo
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+      - ./topology.json:/app/topology.json:ro
+    ports:
+     - "8000:8000"
+    networks:
+      - red-monitoreo
+
   # 1. El Archivista de Series de Tiempo
   prometheus:
     image: prom/prometheus:latest
@@ -12,8 +26,8 @@ services:
       # Volumen persistente para que no se borren las métricas históricas al apagar
       - prometheus_data:/prometheus
     # Permite al contenedor de Prometheus ver el puerto 8000 de tu Fedora
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    networks:
+      - red-monitoreo
 
   # 2. La Pantalla de Control y Dashboards
   grafana:
@@ -27,8 +41,14 @@ services:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
+    networks:
+      - red-monitoreo
 
 # Volúmenes administrados por Docker en tu disco duro
 volumes:
   prometheus_data:
   grafana_data:
+
+networks:
+  red-monitoreo:
+    driver: bridge
