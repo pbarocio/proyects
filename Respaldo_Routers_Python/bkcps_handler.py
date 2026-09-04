@@ -120,8 +120,9 @@ def orchestration(config,bckps_dir):
             except Exception as error:
                 logging.error(f"❌ Flujo interrumpido en {branch_name} debido a un fallo: {error}", exc_info=True)
             finally:
-                    ssh_session.disconnect()
-                    logging.info(f"*** SE CERRÓ LA SESIÓN SSH CON \"{branch_name.upper()}\" 🔓...")
+                    if hasattr(ssh_session, "disconnect"):
+                        ssh_session.disconnect()
+                        logging.info(f"*** SE CERRÓ LA SESIÓN SSH CON \"{branch_name.upper()}\" 🔓...")
             
         send_notification(config,f"💾 LOS RESPALDOS DE LOS ROUTERS FUERON GENERADOS CON ÉXITO... ✅")
     except Exception as error:

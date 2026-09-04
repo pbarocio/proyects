@@ -13,7 +13,10 @@ logging.basicConfig(
     datefmt="%Y-%m-%d_%H:%M:%S",
     handlers=[
         logging.FileHandler(log_dir / "backup_routers.log"),
-        logging.StreamHandler()
+        logging.StreamHandler(),
+        # Callar librerías ruidosas
+        # logging.getLogger("paramiko").setLevel(logging.WARNING),
+        # logging.getLogger("netmiko").setLevel(logging.WARNING)
     ]
 )
 

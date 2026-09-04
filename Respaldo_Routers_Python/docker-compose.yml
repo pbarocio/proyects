@@ -1,0 +1,13 @@
+services:
+  backup:
+    build: .
+    container_name: mikrotik_backup_job
+    env_file:
+      - .env
+    volumes:
+      - "/mnt/sistemas.agrocisa/Sistemas/Backups Mikrotik:/app/backups"
+      - ./logs:/app/logs
+      - ./topology.json:/app/topology.json:ro
+      - ~/.ssh/id_agrocisa_monitoreo:/app/keys/id_agrocisa_monitoreo:ro
+      # Sincronizar zona horaria con Fedora:
+      - /etc/localtime:/etc/localtime:ro
