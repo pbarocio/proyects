@@ -1,0 +1,4 @@
+netmiko
+paramiko
+pyTelegramBotAPI
+python-dotenv

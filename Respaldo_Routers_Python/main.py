@@ -3,11 +3,18 @@ from pathlib import Path #Librería para manejar directorios cómo objetos
 from config import get_config
 import bkcps_handler as bckps
 
+config = get_config()
+log_dir = config["log_dir"]
+log_dir.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
-    filename= get_config()["log_dir"] / "backups_routers.log",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s - %(filename)s",
-    datefmt="%Y-%m-%d_%H:%M:%S"    
+    datefmt="%Y-%m-%d_%H:%M:%S",
+    handlers=[
+        logging.FileHandler(log_dir / "backup_routers.log"),
+        logging.StreamHandler()
+    ]
 )
 
 def create_dirs():
