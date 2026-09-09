@@ -1,0 +1,48 @@
+services:
+  agrocisa_mariadb:
+    image: mariadb:10.6
+    container_name: agrocisa_mariadb
+    command: --lower_case_table_names=1
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: '4GR0C154#SIS'
+      MYSQL_DATABASE: agrocisa_core
+    ports:
+      - "127.0.0.1:3307:3306"
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - agrocisa_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p4GR0C154#SIS"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  agrocisa_streamlit:
+    build: .
+    container_name: agrocisa_streamlit
+    restart: always
+    ports:
+      - "10.147.17.111:8501:8501"
+    environment:
+      - ENTORNO_BD=LOCAL
+      - LOCAL_HOST=agrocisa_mariadb
+      - LOCAL_DB_USER=root
+      - local_DB_PASSWORD=4GR0C154#SIS
+      - local_DATABASE=agrocisa_core
+    depends_on:
+      agrocisa_mariadb:
+        condition: service_healthy
+    networks:
+      - agrocisa_net
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+
+volumes:
+  mariadb_data:
+
+networks:
+  agrocisa_net:
+    driver: bridge

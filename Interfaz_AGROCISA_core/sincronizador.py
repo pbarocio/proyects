@@ -188,12 +188,17 @@ def ejecutar_diagnostico_completo():
     loc_reales_discrepantes = loc_sin_vps_id.drop(index=idx_loc_homologados)
     altas_reales = vps_sin_loc_id.drop(index=idx_vps_homologados)
 
-    # 1. Externos protegidos
-    es_externo = loc_reales_discrepantes["puesto"].astype(str).str.lower().str.contains("externo|asesor|proveedor|contratista") | \
-                 loc_reales_discrepantes["sucursal"].astype(str).str.lower().str.contains("externo|corporativo externo") | \
-                 (loc_reales_discrepantes["id_tipo_contrato"] == 2)
-    externos_protegidos = loc_reales_discrepantes[es_externo].copy()
+    # 1. Externos protegidos (Filtro corregido: removida la palabra 'asesor' para evitar falsos positivos con asesores internos)
+    puesto_str = loc_reales_discrepantes["puesto"].astype(str).str.lower()
+    sucursal_str = loc_reales_discrepantes["sucursal"].astype(str).str.lower()
 
+    es_externo = (
+        puesto_str.str.contains("externo|proveedor|contratista|consultor", na=False) |
+        sucursal_str.str.contains("externo|corporativo externo", na=False) |
+        (loc_reales_discrepantes["id_tipo_contrato"] == 2)
+    )
+
+    externos_protegidos = loc_reales_discrepantes[es_externo].copy()
     resto_loc = loc_reales_discrepantes[~es_externo].copy()
 
     # 2. Identificación de Altas Provisionales (Códigos manuales o temporales)

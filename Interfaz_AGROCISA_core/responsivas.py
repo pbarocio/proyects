@@ -244,14 +244,14 @@ def obtener_equipos_disponibles():
     return equipos
 
 def obtener_hardware_asignado_desvinculacion_df():
-    """Consulta modularmente los equipos asignados para evitar errores de colación en MariaDB."""
+    """Consulta modularmente los equipos y líneas asignados para desvinculación."""
     conn = obtener_conexion()
     if not conn:
         return pd.DataFrame()
 
     try:
         q_cel = """
-            SELECT 'celular' AS tipo, ic.imei AS id, ic.numero_serie, CONCAT(COALESCE(m.marca_modelo, 'Celular'), ' (IMEI: ', ic.imei, ')') AS descripcion, 
+            SELECT 'celular' AS tipo, ic.imei AS id, ic.numero_serie, CONCAT(COALESCE(m.marca_modelo, 'Celular'), ' (IMEI: ', ic.imei, ' | Línea: ', COALESCE(ic.numero, 'Sin Línea'), ')') AS descripcion, 
                    CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, ic.codigo_empleado
             FROM inventario_celulares ic
             JOIN empleados e ON TRIM(LEADING '0' FROM CAST(ic.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
@@ -286,9 +286,16 @@ def obtener_hardware_asignado_desvinculacion_df():
             JOIN empleados e ON TRIM(LEADING '0' FROM CAST(it.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
             WHERE it.id_estatus_tablet = 3
         """
+        q_lin = """
+            SELECT 'linea' AS tipo, lt.numero AS id, lt.numero AS numero_serie, CONCAT('SIM / Línea Telefónica: ', lt.numero, ' (Plan: ', COALESCE(lt.plan_2026, '4'), ')') AS descripcion,
+                   CONCAT_WS(' ', e.nombre, e.apellido_paterno, e.apellido_materno) AS asignado_a, lt.codigo_empleado
+            FROM lineas_telefonicas lt
+            JOIN empleados e ON TRIM(LEADING '0' FROM CAST(lt.codigo_empleado AS CHAR)) = TRIM(LEADING '0' FROM CAST(e.codigo AS CHAR))
+            WHERE lt.id_estatus_linea = 3
+        """
 
         dfs = []
-        for q in [q_cel, q_lap, q_cpu, q_mon, q_tab]:
+        for q in [q_cel, q_lap, q_cpu, q_mon, q_tab, q_lin]:
             df_p = pd.read_sql(q, conn)
             if not df_p.empty:
                 dfs.append(df_p)
@@ -464,6 +471,28 @@ def procesar_desvinculacion_equipo(tipo_equipo, id_equipo, nuevo_estatus_id, raz
         f_hoy = datetime.now().strftime('%Y-%m-%d')
         colab_txt = f" a {nombre_colaborador.strip()}" if nombre_colaborador.strip() else ""
 
+        # CASO ESPECIAL: Desvinculación directa de SIM / Línea Telefónica
+        if tipo_equipo == "linea":
+            cursor.execute("UPDATE responsivas_celulares SET id_status = 2 WHERE numero = %s AND id_status = 1", (id_equipo,))
+            cursor.execute("UPDATE inventario_celulares SET numero = NULL WHERE numero = %s", (id_equipo,))
+            
+            texto_historial = f"[DESVINCULADO {f_hoy}{colab_txt}]: {razon_motivo.strip()}"
+            cursor.execute("""
+                UPDATE lineas_telefonicas 
+                SET codigo_empleado = NULL, 
+                    id_estatus_linea = 4, 
+                    comentarios = CASE 
+                        WHEN comentarios IS NULL OR TRIM(comentarios) = '' THEN %s 
+                        ELSE CONCAT(comentarios, ' | ', %s) 
+                    END
+                WHERE numero = %s
+            """, (texto_historial, texto_historial, id_equipo))
+
+            conn.commit()
+            conn.close()
+            return True
+
+        # CONFIGURACIÓN PARA RESTO DE HARDWARE
         config_tablas = {
             "celular": {
                 "inv": "inventario_celulares", "col_id": "imei", "col_est": "id_estatus_celular",
@@ -489,12 +518,13 @@ def procesar_desvinculacion_equipo(tipo_equipo, id_equipo, nuevo_estatus_id, raz
 
         cfg = config_tablas.get(tipo_equipo)
         if not cfg:
+            conn.close()
             return False
 
         # 1. Cerrar responsiva activa
         cursor.execute(f"UPDATE {cfg['resp']} SET id_status = 2 WHERE {cfg['col_resp_id']} = %s AND id_status = 1", (id_equipo,))
 
-        # 2. Si es celular, liberar la línea telefónica
+        # 2. Si es celular: desasigna la línea en lineas_telefonicas y limpia el numero en el cel
         if tipo_equipo == "celular":
             cursor.execute("SELECT numero FROM inventario_celulares WHERE imei = %s", (id_equipo,))
             res_num = cursor.fetchone()
@@ -503,10 +533,13 @@ def procesar_desvinculacion_equipo(tipo_equipo, id_equipo, nuevo_estatus_id, raz
                 cursor.execute("""
                     UPDATE lineas_telefonicas 
                     SET id_estatus_linea = 4, codigo_empleado = NULL 
-                    WHERE numero = %s AND id_estatus_linea != 5
+                    WHERE numero = %s
                 """, (num_asig,))
 
-        # 3. Actualizar inventario
+            # Limpiar el campo número en el celular para que quede libre
+            cursor.execute("UPDATE inventario_celulares SET numero = NULL WHERE imei = %s", (id_equipo,))
+
+        # 3. Actualizar inventario físico
         texto_historial = f"[DESVINCULADO {f_hoy}{colab_txt}]: {razon_motivo.strip()}"
 
         q_release = f"""
@@ -895,18 +928,24 @@ def render():
 
                     c_d1, c_d2 = st.columns(2)
                     with c_d1:
-                        dict_estatus_destino = {
-                            "DISPONIBLE (Devolución limpia al stock)": 4,
-                            "EN REPARACIÓN (Pantalla rota, fallo de hardware)": 6,
-                            "EN MANTENIMIENTO (Limpieza, formateo, software)": 5,
-                            "INACTIVO (Baja definitiva / Inservible)": 2
-                        }
+                        if item_row['tipo'] == "linea":
+                            dict_estatus_destino = {
+                                "DISPONIBLE (Línea liberada al stock)": 4,
+                                "BAJA DEFINITIVA (Cancelación con Telcel)": 2
+                            }
+                        else:
+                            dict_estatus_destino = {
+                                "DISPONIBLE (Devolución limpia al stock)": 4,
+                                "EN REPARACIÓN (Pantalla rota, fallo de hardware)": 6,
+                                "EN MANTENIMIENTO (Limpieza, formateo, software)": 5,
+                                "INACTIVO (Baja definitiva / Inservible)": 2
+                            }
                         destino_nom = st.selectbox("Nuevo Estatus del Equipo en Inventario:", list(dict_estatus_destino.keys()))
 
                     with c_d2:
-                        motivo_txt = st.text_input("Motivo / Diagnóstico de Recepción:", placeholder="Ej. Pantalla quebrada por caída, baja de empleado, cambio de equipo")
+                        motivo_txt = st.text_input("Motivo / Diagnóstico de Recepción:", placeholder="Ej. Baja de empleado, cambio de equipo, finiquito")
 
-                    btn_liberar = st.form_submit_button("💥 Confirmar Desvinculación y Liberar Equipo", type="primary")
+                    btn_liberar = st.form_submit_button("💥 Confirmar Desvinculación y Liberar", type="primary")
 
                     if btn_liberar:
                         if not motivo_txt.strip():
@@ -921,7 +960,7 @@ def render():
                                 nombre_colaborador=nombre_completo_colab
                             )
                             if exito:
-                                st.session_state["mensaje_exito_desv"] = f"🎉 ¡Equipo **{item_row['descripcion']}** (Asignado a: **{item_row['asignado_a']}**) desvinculado con éxito! Se actualizó su estatus a: **{destino_nom}**."
+                                st.session_state["mensaje_exito_desv"] = f"🎉 ¡**{item_row['descripcion']}** (Asignado a: **{item_row['asignado_a']}**) desvinculado con éxito! Se actualizó su estatus a: **{destino_nom}**."
                                 st.rerun()
             else:
                 st.info("👆 Selecciona un equipo de la lista desplegable de arriba para abrir el formulario de recepción.")

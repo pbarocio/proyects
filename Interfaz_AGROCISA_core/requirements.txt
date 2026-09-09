@@ -1,11 +1,12 @@
 streamlit
 pandas
 mysql-connector-python
-sshtunnel
-paramiko
+sqlalchemy
 python-dotenv
 docxtpl
 num2words
 plotly
 openpyxl
 gspread
+sshtunnel
+paramiko
