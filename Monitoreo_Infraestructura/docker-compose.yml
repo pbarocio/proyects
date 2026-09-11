@@ -1,0 +1,18 @@
+services:
+  printer_exporter:
+    build: ./printer_exporter
+    container_name: printer_exporter
+    ports:
+      - "9120:9120"
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: prometheus
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+    depends_on:
+      - printer_exporter
