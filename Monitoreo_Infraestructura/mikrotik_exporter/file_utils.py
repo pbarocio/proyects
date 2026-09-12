@@ -1,0 +1,75 @@
+import json
+import logging
+
+def get_current_timestamp(flag,current_timestamp,empty_timestamp): #Función para saber el timestamp del Estado_Actual
+    if "Is" in flag:
+        return current_timestamp
+    else:
+        return empty_timestamp
+
+def load_counter(counter_file):
+    try:
+        if counter_file.exists():
+            with open(counter_file, "r") as file:
+                counter = json.load(file)
+            return counter
+        else:
+            with open(counter_file, "w", encoding="utf-8") as file:
+                json.dump(int(1), file, indent=4, ensure_ascii=False)
+            return 1
+    except Exception as error:
+        logging.error(f"\n❌ ‼️ 🔴 ERROR CARGANDO EL ARCHIVO JSON ‼️ -> {error}\n", exc_info=True)
+        
+def load_json_file(file):
+    try:
+        with open(file, "r", encoding="utf-8") as load_file:
+            recovery_data = json.load(load_file)
+        return recovery_data
+    except Exception as error:
+        logging.error(f"\n❌ ‼️ 🔴 ERROR CARGANDO EL ARCHIVO JSON ‼️ -> {error}\n", exc_info=True)
+        
+def load_previous_state(previous_state_file):
+    try:
+        if previous_state_file.exists():
+            return load_json_file(previous_state_file)
+        else:
+            return []
+    except Exception as error:
+        logging.error(f"¡¡¡ERROR CARGANDO EL ESTADO PREVIO!!! {error}", exc_info=True)
+
+def get_previous_state(previous_state, current_branch, current_link, current_flag, current_link_timestamp, current_link_lastrecord):
+    try:
+        if (current_branch not in previous_state or 
+            current_link not in previous_state[current_branch] or
+            "BRANCHES-DOWN" in current_branch): #Sí no existen las llaves en el estado previo o es BRANCHES-DOWN retornamos los valores actuales
+            return current_flag, current_link_timestamp, True, current_link_lastrecord
+        
+        link_state = previous_state[current_branch][current_link]
+        
+        previous_flag      = link_state.get("flag", current_flag)
+        previous_link_timestamp = link_state.get("timestamp", current_link_timestamp)
+        notification       = link_state.get("notification", True)
+        previous_lastrecord         = link_state.get("lastrecord", current_link_lastrecord)
+        
+        return previous_flag, previous_link_timestamp, notification, previous_lastrecord
+    except Exception as error:
+        logging.error(f"¡¡¡ERROR EXTRAYENDO EL ESTADO PREVIO!!! {error}", exc_info=True)
+        return current_flag, current_link_timestamp, True, current_link_lastrecord
+
+def write_json_files(file,data):
+    try:
+        with open(file, "w", encoding="utf-8") as file_write:
+           json.dump(data, file_write, indent=4, ensure_ascii=False)
+    except Exception as error:
+        logging.error(f"\n❌ ‼️ 🔴 ERROR ESCRIBIENDO EL ARCHIVO JSON‼️ -> {error}\n", exc_info=True)
+
+def get_elapsed_time(previous_timestamp,current_timestamp):
+    try:
+        elapsed_time = 0 #Inicializamos elapsed time por sí no hay un timestamp en estado previo
+        if not "-" in previous_timestamp : #Validamos que Si hay un timestamp previo para calcular tiempo de recuperación
+            elapsed_time = (int(current_timestamp) - int(previous_timestamp))
+            return elapsed_time
+        else:
+            return 0
+    except Exception as error:
+        logging.error(f"\n❌ ‼️ 🔴 ERROR EXTRAYENDO EL TIEMPO TRANSCURRIDO‼️ -> {error}\n", exc_info=True)
