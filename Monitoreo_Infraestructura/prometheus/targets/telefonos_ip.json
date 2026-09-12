@@ -1,0 +1,20 @@
+[
+  {
+    "targets": ["10.10.100.200"],
+    "labels": {
+      "name": "Telefono-Recepcion-LaBarca",
+      "branch": "La Barca",
+      "brand": "Grandstream",
+      "device_type": "Teléfono IP"
+    }
+  },
+  {
+    "targets": ["10.10.20.65"],
+    "labels": {
+      "name": "Telefono-Caja-LaBarca",
+      "branch": "La Barca",
+      "brand": "Grandstream",
+      "device_type": "Teléfono IP"
+    }
+  }
+]

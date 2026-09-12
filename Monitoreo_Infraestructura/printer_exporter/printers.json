@@ -1,0 +1,14 @@
+[
+  {
+    "name": "LaBarca-Sistemas",
+    "host": "imp-sis-01.agrocisa.corporativo",
+    "branch": "La Barca",
+    "brand": "Brother"
+  },
+  {
+    "name": "Poncitlán",
+    "host": "imp-ven-01.agrocisa.poncitlan",
+    "branch": "Poncitlán",
+    "brand": "Brother"
+  }
+]

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from prometheus_client import start_http_server, Gauge
 from pysnmp.hlapi.v3arch.asyncio import (
     SnmpEngine,
@@ -20,6 +21,15 @@ OID_MAX_CAP = '.1.3.6.1.2.1.43.11.1.1.8.1.1'
 OID_CUR_LEVEL = '.1.3.6.1.2.1.43.11.1.1.9.1.1'
 OID_STATUS = '.1.3.6.1.2.1.25.3.2.1.5.1'
 
+def load_printers():
+    """Carga el inventario actualizado desde el JSON en cada ciclo."""
+    try:
+        with open('printers.json', 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"❌ Error leyendo printers.json: {e}")
+        return []
+
 async def snmp_get(host, oid, community='public'):
     try:
         target = await UdpTransportTarget.create((host, 161), timeout=2, retries=1)
@@ -38,10 +48,11 @@ async def snmp_get(host, oid, community='public'):
         return None
 
 async def check_printers():
-    printers = [
-        {"name": "LaBarca-Sistemas", "host": "imp-sis-01.agrocisa.corporativo", "brand": "Brother", "branch": "La Barca"},
-        {"name": "Poncitlán", "host": "imp-ven-01.agrocisa.poncitlan", "brand": "Brother", "branch": "Poncitlán"}
-    ]
+    printers = load_printers()
+    
+    if not printers:
+        print("⚠️ No hay impresoras configuradas o falló la lectura del JSON.")
+        return
 
     for p in printers:
         print(f"🔍 Consultando {p['name']} ({p['host']})...")
@@ -49,7 +60,7 @@ async def check_printers():
         
         # Si ni siquiera responde el estado, la declaramos DOWN
         if status is None:
-            print(f"❌ {p['name']} no respondió SNMP o fallo el DNS.")
+            print(f"❌ {p['name']} no respondió SNMP o falló el DNS.")
             PRINTER_UP.labels(printer_name=p['name'], host=p['host'], branch=p['branch']).set(0)
             continue
         
@@ -63,11 +74,9 @@ async def check_printers():
 
         # Evaluación inteligente de tóner para Brother / RICOH
         if cur_level == -3 or (max_cap and max_cap > 0 and cur_level > 0):
-            # Si da -3 (someRemaining) o cálculo positivo, el tóner está OK
             percent = (cur_level / max_cap * 100) if (max_cap and max_cap > 0 and cur_level > 0) else 100.0
             TONER_LEVEL.labels(printer_name=p['name'], host=p['host'], brand=p['brand'], branch=p['branch']).set(percent)
         elif cur_level == 0:
-            # Tóner completamente agotado
             TONER_LEVEL.labels(printer_name=p['name'], host=p['host'], brand=p['brand'], branch=p['branch']).set(0.0)
 
 async def main():

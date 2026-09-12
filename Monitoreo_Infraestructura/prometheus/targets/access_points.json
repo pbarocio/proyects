@@ -1,0 +1,20 @@
+[
+  {
+    "targets": ["ap-sistemas.agrocisa.corporativo"],
+    "labels": {
+      "name": "AP-Sistemas-LaBarca",
+      "branch": "La Barca",
+      "brand": "Grandstream",
+      "device_type": "Access Point"
+    }
+  },
+  {
+    "targets": ["ap-sj-01.agrocisa.corporativo"],
+    "labels": {
+      "name": "AP-Sala-Juntas-LaBarca",
+      "branch": "La Barca",
+      "brand": "Grandstream",
+      "device_type": "Access Point"
+    }
+  }
+]

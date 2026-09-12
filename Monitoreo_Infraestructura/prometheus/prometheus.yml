@@ -1,16 +1,27 @@
-# prometheus/prometheus.yml
-
 global:
   scrape_interval: 15s
+  evaluation_interval: 15s
 
 scrape_configs:
-  # Job existente de tus métricas de API/Enlaces
-  - job_name: 'agrocisa-api'
-    static_configs:
-      - targets: ['api:8000']
-
-  # AQUÍ AGREGAS EL NUEVO JOB DE LAS IMPRESORAS:
+  # 1. Exporter Custom de Impresoras (Script en Python)
   - job_name: 'impresoras-agrocisa'
     scrape_interval: 60s
     static_configs:
-      - targets: ['printer_exporter:9120']  # Nombre del servicio en docker-compose
+      - targets: ['printer_exporter:9120']
+
+  # 2. Monitoreo ICMP (Ping) dinámico leyendo la carpeta targets/
+  - job_name: 'blackbox-ping-infraestructura'
+    metrics_path: /probe
+    params:
+      module: [icmp_check]
+    file_sd_configs:
+      - files:
+          - '/etc/prometheus/targets/*.json'
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox_exporter:9115

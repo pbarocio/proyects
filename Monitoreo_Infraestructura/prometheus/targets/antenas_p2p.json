@@ -1,0 +1,18 @@
+[
+  {
+    "targets": ["txpv.agrocisa.corporativo"],
+    "labels": {
+      "name": "La Barca-PV-TX",
+      "branch": "La Barca",
+      "device_type": "Antena P2P"
+    }
+  },
+  {
+    "targets": ["rxpv.agrocisa.corporativo"],
+    "labels": {
+      "name": "LaBarca-PV-RX",
+      "branch": "La Barca",
+      "device_type": "Antena P2P"
+    }
+  }
+]

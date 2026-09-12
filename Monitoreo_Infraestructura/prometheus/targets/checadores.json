@@ -1,0 +1,20 @@
+[
+  {
+    "targets": ["checador.agrocisa.corporativo"],
+    "labels": {
+      "name": "Checador-LaBarca",
+      "branch": "La Barca",
+      "brand": "Hikvision",
+      "device_type": "Checador"
+    }
+  },
+  {
+    "targets": ["checador.agrocisa.penjamo"],
+    "labels": {
+      "name": "Checador-Penjamo",
+      "branch": "Penjamo",
+      "brand": "Hikvision",
+      "device_type": "Checador"
+    }
+  }
+]

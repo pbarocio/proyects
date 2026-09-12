@@ -1,0 +1,18 @@
+[
+  {
+    "targets": ["nvr.agrocisa.corporativo"],
+    "labels": {
+      "name": "NVR",
+      "branch": "La Barca",
+      "device_type": "NVR"
+    }
+  },
+  {
+    "targets": ["10.10.30.9"],
+    "labels": {
+      "name": "Cámara-Almacen-Marketing",
+      "branch": "La Barca",
+      "device_type": "Cámara IP"
+    }
+  }
+]
